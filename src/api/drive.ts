@@ -2,6 +2,11 @@ const FILE_NAME = "note.txt";
 const API_BASE = "https://www.googleapis.com/drive/v3";
 const UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3";
 
+async function checkResponse(res: Response) {
+  if (res.status === 401) throw new Error("expired");
+  if (!res.ok) throw new Error("request failed");
+}
+
 export async function findFile(token: string): Promise<string | null> {
   const q = encodeURIComponent(`name = '${FILE_NAME}'`);
   const url = `${API_BASE}/files?spaces=appDataFolder&q=${q}&fields=files(id)`;
@@ -9,7 +14,7 @@ export async function findFile(token: string): Promise<string | null> {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error("findFile failed");
+  await checkResponse(res);
 
   const data: { files?: { id: string }[] } = await res.json();
   return data.files?.[0]?.id ?? null;
@@ -27,7 +32,7 @@ export async function createFile(token: string): Promise<string> {
       parents: ["appDataFolder"],
     }),
   });
-  if (!res.ok) throw new Error("createFile failed");
+  await checkResponse(res);
 
   const data: { id: string } = await res.json();
   return data.id;
@@ -42,7 +47,7 @@ export async function saveContent(token: string, fileId: string, content: string
     },
     body: content,
   });
-  if (!res.ok) throw new Error("saveContent failed");
+  await checkResponse(res);
 }
 
 export async function loadContent(token: string, fileId: string): Promise<string> {
@@ -51,7 +56,7 @@ export async function loadContent(token: string, fileId: string): Promise<string
       Authorization: `Bearer ${token}`,
     },
   });
-  if (!res.ok) throw new Error("loadContent failed");
+  await checkResponse(res);
 
   return res.text();
 }
