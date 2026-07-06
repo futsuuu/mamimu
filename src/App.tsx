@@ -3,21 +3,52 @@ import { useGoogleLogin } from "@react-oauth/google";
 import { findFile, createFile, saveContent, loadContent } from "./api/drive";
 import "./App.css";
 
+const TOKEN_KEY = "mamimu_token";
+
+function loadToken(): string | null {
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if (!raw) return null;
+    const { token, expiresAt } = JSON.parse(raw);
+    if (Date.now() < expiresAt) return token;
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+  return null;
+}
+
+function saveToken(token: string, expiresIn: number) {
+  const expiresAt = Date.now() + (expiresIn - 300) * 1000;
+  localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expiresAt }));
+}
+
+function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 function App() {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(loadToken);
   const [text, setText] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(token ? "Signed in" : "");
 
   const login = useGoogleLogin({
     scope: "https://www.googleapis.com/auth/drive.appdata",
     onSuccess: (res) => {
       setToken(res.access_token);
+      saveToken(res.access_token, res.expires_in);
       setStatus("Authenticated");
     },
     onError: () => {
       setStatus("Authentication failed");
     },
   });
+
+  const recoverAuth = useCallback(() => {
+    clearToken();
+    setToken(null);
+    setStatus("Session expired. Sign in again.");
+  }, []);
 
   const handleLoad = useCallback(async () => {
     if (!token) return;
@@ -32,10 +63,14 @@ function App() {
       const content = await loadContent(token, id);
       setText(content);
       setStatus("Loaded");
-    } catch {
+    } catch (e) {
+      if (e instanceof Error && e.message === "expired") {
+        recoverAuth();
+        return;
+      }
       setStatus("Failed to load");
     }
-  }, [token]);
+  }, [token, recoverAuth]);
 
   const handleSave = useCallback(async () => {
     if (!token) return;
@@ -47,10 +82,14 @@ function App() {
       }
       await saveContent(token, id, text);
       setStatus("Saved");
-    } catch {
+    } catch (e) {
+      if (e instanceof Error && e.message === "expired") {
+        recoverAuth();
+        return;
+      }
       setStatus("Failed to save");
     }
-  }, [token, text]);
+  }, [token, text, recoverAuth]);
 
   return (
     <div className="container">
