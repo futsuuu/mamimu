@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
 
 import type { Message } from "../types";
 
@@ -15,9 +15,10 @@ function formatTime(ts: number): string {
 }
 
 export default function ThreadView({ currentFile, messages, onSend, onBack }: Props) {
-  const [inputText, setInputText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollableRef = useRef<HTMLDivElement | null>(null);
+  const composingRef = useRef(false);
+  const inputValueRef = useRef("");
 
   const autoResize = useCallback(() => {
     const ta = inputRef.current;
@@ -27,22 +28,24 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputText(e.target.value);
+    inputValueRef.current = e.target.value;
+    if (composingRef.current) return;
     autoResize();
   };
 
   const handleSend = () => {
-    const text = inputText.trim();
+    const text = inputValueRef.current.trim();
     if (!text) return;
     onSend(text);
-    setInputText("");
+    inputValueRef.current = "";
     if (inputRef.current) {
-      inputRef.current.style.height = "auto";
+      inputRef.current.value = "";
       inputRef.current.style.height = "120px";
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (composingRef.current) return;
     if (e.key === "Enter" && e.ctrlKey) {
       e.preventDefault();
       handleSend();
@@ -56,9 +59,9 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   }, [messages]);
 
   useEffect(() => {
-    setInputText("");
+    inputValueRef.current = "";
     if (inputRef.current) {
-      inputRef.current.style.height = "auto";
+      inputRef.current.value = "";
       inputRef.current.style.height = "120px";
     }
   }, [currentFile.id]);
@@ -92,9 +95,17 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           <textarea
             ref={inputRef}
             className="block w-full min-h-[120px] p-3 border-none outline-none resize-none font-inherit text-base leading-relaxed bg-transparent overflow-y-hidden"
-            value={inputText}
+            defaultValue=""
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onCompositionStart={() => {
+              composingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              composingRef.current = false;
+              inputValueRef.current = inputRef.current?.value ?? "";
+              autoResize();
+            }}
             placeholder="Type a message..."
           />
         </div>
