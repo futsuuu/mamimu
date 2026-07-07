@@ -19,7 +19,7 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`${hideSidebar ? "hidden md:flex" : "flex"} flex-col w-full md:w-60 bg-white border-r border-gray-300 shrink-0 min-h-0`}
+      className={`${hideSidebar ? "hidden md:flex" : "flex"} flex-col w-full md:w-60 bg-slate-100 border-r border-gray-300 shrink-0 min-h-0`}
     >
       <div className="p-4 border-b border-gray-200">
         <h1 className="text-lg mb-3">mamimu</h1>
@@ -34,7 +34,7 @@ export default function Sidebar({
         {files.map((file) => (
           <li
             key={file.id}
-            className={`group flex justify-between items-center px-4 py-3 md:px-3 md:py-2 cursor-pointer border-b border-gray-100 hover:bg-gray-100${currentFile?.id === file.id ? " bg-indigo-100" : ""}`}
+            className={`group flex justify-between items-center px-4 py-3 md:px-3 md:py-2 cursor-pointer border-b border-gray-100 hover:bg-gray-100${currentFile?.id === file.id ? " bg-white" : ""}`}
             onClick={() => onSelectFile(file)}
           >
             <span className="truncate flex-1 text-sm">{file.name}</span>

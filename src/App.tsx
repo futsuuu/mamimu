@@ -304,7 +304,7 @@ function App() {
             onDeleteFile={handleDeleteFile}
           />
           <main
-            className={`${hideMain ? "hidden md:flex" : "flex"} flex-col w-full pt-4 min-h-0 md:flex-1`}
+            className={`${hideMain ? "hidden md:flex" : "flex"} flex-col w-full min-h-0 md:flex-1 bg-white`}
           >
             {currentFile ? (
               <ThreadView
@@ -318,7 +318,7 @@ function App() {
                 <p>Select a thread or create a new one</p>
               </div>
             )}
-            {status && <p className="mt-2 px-4 pb-4 text-xs text-gray-500">{status}</p>}
+            {status && <p className="px-4 text-xs text-gray-500">{status}</p>}
           </main>
         </>
       )}
