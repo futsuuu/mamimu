@@ -65,25 +65,33 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
 
   return (
     <>
-      <div className="toolbar">
-        <button className="btn-back" onClick={onBack}>
+      <div className="flex items-center gap-2 px-4 pb-3 border-b border-gray-200 mb-3 md:hidden">
+        <button
+          className="bg-transparent border-none cursor-pointer text-xl px-1 leading-none text-gray-800"
+          onClick={onBack}
+        >
           ←
         </button>
-        <span className="filename">{currentFile.name}</span>
+        <span className="font-medium text-sm">{currentFile.name}</span>
       </div>
-      <div className="scrollable" ref={scrollableRef}>
-        <div className="message-list">
+      <div
+        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col px-4"
+        ref={scrollableRef}
+      >
+        <div className="flex-none">
           {messages.map((msg) => (
-            <div key={msg.id} className="message">
-              <div className="message-time">{formatTime(msg.timestamp)}</div>
-              <div className="message-text">{msg.text}</div>
+            <div key={msg.id} className="px-3 py-1">
+              <div className="text-xs text-gray-400 mb-px">{formatTime(msg.timestamp)}</div>
+              <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                {msg.text}
+              </div>
             </div>
           ))}
         </div>
-        <div className="input-area">
+        <div className="flex-1 min-h-[120px]">
           <textarea
             ref={inputRef}
-            className="message-input"
+            className="block w-full min-h-[120px] p-3 border-none outline-none resize-none font-inherit text-sm leading-relaxed bg-transparent overflow-y-hidden"
             value={inputText}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}

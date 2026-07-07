@@ -7,8 +7,6 @@ import Sidebar from "./components/Sidebar";
 import ThreadView from "./components/ThreadView";
 import type { Message } from "./types";
 
-import "./App.css";
-
 const TOKEN_KEY = "mamimu_token";
 const SAVE_THROTTLE_MS = 1000;
 
@@ -299,7 +297,7 @@ function App() {
   const hideMain = sidebarOpen || !currentFile;
 
   return (
-    <div className="container">
+    <div className="flex h-screen overflow-hidden">
       {!token ? (
         <AuthScreen onLogin={() => login()} />
       ) : (
@@ -312,7 +310,9 @@ function App() {
             onCreateFile={handleCreateFile}
             onDeleteFile={handleDeleteFile}
           />
-          <main className={`main${hideMain ? " hidden" : ""}`}>
+          <main
+            className={`${hideMain ? "hidden md:flex" : "flex"} flex-col w-full pt-4 min-h-0 md:flex-1`}
+          >
             {currentFile ? (
               <ThreadView
                 currentFile={currentFile}
@@ -321,11 +321,11 @@ function App() {
                 onBack={() => setSidebarOpen(true)}
               />
             ) : (
-              <div className="empty-state">
+              <div className="flex items-center justify-center flex-1 text-gray-400 text-sm">
                 <p>Select a thread or create a new one</p>
               </div>
             )}
-            {status && <p className="status">{status}</p>}
+            {status && <p className="mt-2 px-4 pb-4 text-xs text-gray-500">{status}</p>}
           </main>
         </>
       )}
