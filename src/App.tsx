@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { findFile, createFile, saveContent, loadContent } from "./api/drive";
 import "./App.css";
@@ -32,12 +32,18 @@ function App() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState(token ? "Signed in" : "");
 
+  const fileIdRef = useRef<string | null>(null);
+  const lastContentRef = useRef("");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textRef = useRef("");
+
   const login = useGoogleLogin({
     scope: "https://www.googleapis.com/auth/drive.appdata",
     onSuccess: (res) => {
       setToken(res.access_token);
       saveToken(res.access_token, res.expires_in);
-      setStatus("Authenticated");
+      setStatus("Signed in");
+      void loadNote(res.access_token);
     },
     onError: () => {
       setStatus("Authentication failed");
@@ -50,18 +56,23 @@ function App() {
     setStatus("Session expired. Sign in again.");
   }, []);
 
-  const handleLoad = useCallback(async () => {
-    if (!token) return;
+  const loadNote = useCallback(async (t: string) => {
     setStatus("Loading...");
     try {
-      const id = await findFile(token);
+      const id = await findFile(t);
       if (!id) {
         setStatus("No saved note found");
         setText("");
+        lastContentRef.current = "";
+        textRef.current = "";
+        fileIdRef.current = null;
         return;
       }
-      const content = await loadContent(token, id);
+      fileIdRef.current = id;
+      const content = await loadContent(t, id);
       setText(content);
+      textRef.current = content;
+      lastContentRef.current = content;
       setStatus("Loaded");
     } catch (e) {
       if (e instanceof Error && e.message === "expired") {
@@ -70,17 +81,24 @@ function App() {
       }
       setStatus("Failed to load");
     }
-  }, [token, recoverAuth]);
+  }, [recoverAuth]);
 
-  const handleSave = useCallback(async () => {
-    if (!token) return;
+  const autoSave = useCallback(async (t: string, content: string) => {
+    if (!t) return;
+    if (content === lastContentRef.current) return;
     setStatus("Saving...");
     try {
-      let id = await findFile(token);
+      let id = fileIdRef.current;
       if (!id) {
-        id = await createFile(token);
+        id = await findFile(t);
+        fileIdRef.current = id;
       }
-      await saveContent(token, id, text);
+      if (!id) {
+        id = await createFile(t);
+        fileIdRef.current = id;
+      }
+      await saveContent(t, id, content);
+      lastContentRef.current = content;
       setStatus("Saved");
     } catch (e) {
       if (e instanceof Error && e.message === "expired") {
@@ -89,7 +107,37 @@ function App() {
       }
       setStatus("Failed to save");
     }
-  }, [token, text, recoverAuth]);
+  }, [recoverAuth]);
+
+  const handleSave = useCallback(async () => {
+    if (!token) return;
+    await autoSave(token, text);
+  }, [token, text, autoSave]);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    setText(newText);
+    textRef.current = newText;
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      if (token) {
+        void autoSave(token, textRef.current);
+      }
+    }, 1500);
+  };
+
+  // useEffect is needed here because there is no DOM event
+  // to hook into for "app just mounted with a cached token".
+  // All other side effects (auto-save, load-on-signin) are
+  // handled in event handlers (onChange / onSuccess).
+  useEffect(() => {
+    if (token) {
+      void loadNote(token);
+    }
+  }, []);
 
   return (
     <div className="container">
@@ -101,9 +149,6 @@ function App() {
         </button>
       ) : (
         <div className="actions">
-          <button className="btn" onClick={handleLoad}>
-            Load
-          </button>
           <button className="btn" onClick={handleSave}>
             Save
           </button>
@@ -113,7 +158,7 @@ function App() {
       <textarea
         className="editor"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={handleTextChange}
         placeholder="Type your note..."
       />
 
