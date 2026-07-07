@@ -136,10 +136,34 @@ function App() {
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (token && textRef.current !== lastContentRef.current) {
-        e.preventDefault();
-        e.returnValue = "";
+      if (!token || textRef.current === lastContentRef.current) return;
+
+      // Cancel pending debounce and save immediately with keepalive
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
       }
+
+      const id = fileIdRef.current;
+      if (id) {
+        // Fire-and-forget with keepalive — completes even after tab closes
+        void fetch(
+          `https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "text/plain; charset=utf-8",
+            },
+            body: textRef.current,
+            keepalive: true,
+          },
+        );
+        return;
+      }
+
+      e.preventDefault();
+      e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
