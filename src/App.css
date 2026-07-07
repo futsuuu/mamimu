@@ -10,23 +10,64 @@ body {
   color: #333;
 }
 
+/* ── Mobile-first (default) ── */
+
 .container {
-  max-width: 640px;
-  margin: 40px auto;
-  padding: 0 16px;
-}
-
-h1 {
-  font-size: 1.5rem;
-  margin-bottom: 16px;
-}
-
-.actions {
   display: flex;
-  gap: 8px;
+  height: 100vh;
+}
+
+/* Auth screen (full screen, centered) */
+.auth-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.auth-screen h1 {
+  font-size: 1.5rem;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 100%;
+  background: #fff;
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.sidebar.hidden {
+  display: none;
+}
+
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.sidebar-title {
+  font-size: 1.2rem;
   margin-bottom: 12px;
 }
 
+/* Main area */
+.main {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.main.hidden {
+  display: none;
+}
+
+/* Buttons */
 .btn {
   padding: 8px 20px;
   border: 1px solid #ccc;
@@ -41,7 +82,101 @@ h1 {
 }
 
 .btn-auth {
+  font-size: 1rem;
+}
+
+.btn-new {
+  width: 100%;
+}
+
+.btn-back {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.3rem;
+  padding: 0 4px;
+  line-height: 1;
+  color: #333;
+}
+
+.new-file-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.new-file-input:focus {
+  outline: none;
+  border-color: #666;
+}
+
+/* File list */
+.file-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.file-item:hover {
+  background: #f5f5f5;
+}
+
+.file-item.active {
+  background: #e8e8ff;
+}
+
+.file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  font-size: 0.95rem;
+}
+
+.btn-delete {
+  opacity: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  font-size: 1.1rem;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.file-item:hover .btn-delete {
+  opacity: 1;
+}
+
+.btn-delete:hover {
+  color: #e33;
+}
+
+/* Editor */
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eee;
   margin-bottom: 12px;
+}
+
+.editor-filename {
+  font-weight: 500;
+  font-size: 0.95rem;
 }
 
 .editor {
@@ -54,6 +189,7 @@ h1 {
   line-height: 1.6;
   resize: vertical;
   font-family: inherit;
+  flex: 1;
 }
 
 .editor:focus {
@@ -61,8 +197,45 @@ h1 {
   border-color: #666;
 }
 
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: #999;
+  font-size: 0.95rem;
+}
+
 .status {
   margin-top: 8px;
   font-size: 0.85rem;
   color: #666;
+}
+
+/* ── Desktop (>= 768px) ── */
+
+@media (min-width: 768px) {
+  .sidebar {
+    width: 240px;
+  }
+
+  .sidebar.hidden {
+    display: flex;
+  }
+
+  .main {
+    flex: 1;
+  }
+
+  .main.hidden {
+    display: flex;
+  }
+
+  .editor-toolbar {
+    display: none;
+  }
+
+  .file-item {
+    padding: 8px 12px;
+  }
 }

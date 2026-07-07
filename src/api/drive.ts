@@ -1,4 +1,3 @@
-const FILE_NAME = "note.txt";
 const API_BASE = "https://www.googleapis.com/drive/v3";
 const UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3";
 
@@ -7,8 +6,20 @@ async function checkResponse(res: Response) {
   if (!res.ok) throw new Error("request failed");
 }
 
-export async function findFile(token: string): Promise<string | null> {
-  const q = encodeURIComponent(`name = '${FILE_NAME}'`);
+export async function listFiles(token: string): Promise<{ id: string; name: string }[]> {
+  const url = `${API_BASE}/files?spaces=appDataFolder&fields=files(id,name)`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await checkResponse(res);
+
+  const data: { files?: { id: string; name: string }[] } = await res.json();
+  return data.files ?? [];
+}
+
+export async function findFile(token: string, fileName: string): Promise<string | null> {
+  const q = encodeURIComponent(`name = '${fileName}'`);
   const url = `${API_BASE}/files?spaces=appDataFolder&q=${q}&fields=files(id)`;
 
   const res = await fetch(url, {
@@ -20,7 +31,7 @@ export async function findFile(token: string): Promise<string | null> {
   return data.files?.[0]?.id ?? null;
 }
 
-export async function createFile(token: string): Promise<string> {
+export async function createFile(token: string, fileName: string): Promise<string> {
   const res = await fetch(`${API_BASE}/files`, {
     method: "POST",
     headers: {
@@ -28,7 +39,7 @@ export async function createFile(token: string): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      name: FILE_NAME,
+      name: fileName,
       parents: ["appDataFolder"],
     }),
   });
@@ -36,6 +47,14 @@ export async function createFile(token: string): Promise<string> {
 
   const data: { id: string } = await res.json();
   return data.id;
+}
+
+export async function deleteFile(token: string, fileId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/files/${fileId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await checkResponse(res);
 }
 
 export async function saveContent(token: string, fileId: string, content: string): Promise<void> {
