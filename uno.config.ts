@@ -27,6 +27,9 @@ body {
   background: #f5f5f5;
   color: #333;
 }
+button, input, textarea, select {
+  font-family: inherit;
+}
 `,
     },
   ],
