@@ -77,10 +77,8 @@ function App() {
 
   const saveMessages = useCallback(
     async (t: string, fileId: string, msgs: Message[]) => {
-      setStatus("Saving...");
       try {
         await saveContent(t, fileId, JSON.stringify({ messages: msgs }));
-        setStatus("Saved");
       } catch (e) {
         if (e instanceof Error && e.message === "expired") {
           recoverAuth();
@@ -125,18 +123,24 @@ function App() {
     async (file: { id: string; name: string }) => {
       if (!token) return;
 
-      await flushSave();
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      dirtyRef.current = false;
 
       setCurrentFile(file);
       currentFileRef.current = file;
+      setMessages([]);
+      messagesRef.current = [];
       setStatus("Loading...");
+      setSidebarOpen(false);
       try {
         const content = await loadContent(token, file.id);
         const parsed = parseMessages(content);
         setMessages(parsed);
         messagesRef.current = parsed;
         setStatus("Loaded");
-        setSidebarOpen(false);
       } catch (e) {
         if (e instanceof Error && e.message === "expired") {
           recoverAuth();
@@ -222,17 +226,6 @@ function App() {
     };
 
     void fire();
-  }, [token, saveMessages]);
-
-  const flushSave = useCallback(async () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    dirtyRef.current = false;
-    if (token && currentFileRef.current && messagesRef.current.length > 0) {
-      await saveMessages(token, currentFileRef.current.id, messagesRef.current);
-    }
   }, [token, saveMessages]);
 
   const handleSend = useCallback(
