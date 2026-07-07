@@ -109,11 +109,6 @@ function App() {
     }
   }, [recoverAuth]);
 
-  const handleSave = useCallback(async () => {
-    if (!token) return;
-    await autoSave(token, text);
-  }, [token, text, autoSave]);
-
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
     setText(newText);
@@ -139,20 +134,25 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (token && textRef.current !== lastContentRef.current) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [token]);
+
   return (
     <div className="container">
       <h1>mamimu</h1>
 
-      {!token ? (
+      {!token && (
         <button className="btn btn-auth" onClick={() => login()}>
           Sign in with Google
         </button>
-      ) : (
-        <div className="actions">
-          <button className="btn" onClick={handleSave}>
-            Save
-          </button>
-        </div>
       )}
 
       <textarea
