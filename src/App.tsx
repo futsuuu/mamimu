@@ -1,6 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
+import { useState, useCallback, useRef, useEffect } from "react";
+
 import { listFiles, createFile, deleteFile, saveContent, loadContent } from "./api/drive";
+
 import "./App.css";
 
 const TOKEN_KEY = "mamimu_token";
@@ -61,80 +63,89 @@ function App() {
     setStatus("Session expired. Sign in again.");
   }, []);
 
-  const loadFileList = useCallback(async (t: string) => {
-    setStatus("Loading files...");
-    try {
-      const list = await listFiles(t);
-      setFiles(list);
-      if (list.length > 0) {
-        const first = list[0];
-        setCurrentFile(first);
-        currentFileRef.current = first;
-        const content = await loadContent(t, first.id);
+  const loadFileList = useCallback(
+    async (t: string) => {
+      setStatus("Loading files...");
+      try {
+        const list = await listFiles(t);
+        setFiles(list);
+        if (list.length > 0) {
+          const first = list[0];
+          setCurrentFile(first);
+          currentFileRef.current = first;
+          const content = await loadContent(t, first.id);
+          setText(content);
+          textRef.current = content;
+          lastContentRef.current = content;
+          setStatus("Loaded");
+        } else {
+          setStatus("No files. Create a new one.");
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === "expired") {
+          recoverAuth();
+          return;
+        }
+        setStatus("Failed to load files");
+      }
+    },
+    [recoverAuth],
+  );
+
+  const autoSave = useCallback(
+    async (t: string, content: string) => {
+      if (!t) return;
+      const file = currentFileRef.current;
+      if (!file) return;
+      if (content === lastContentRef.current) return;
+      setStatus("Saving...");
+      try {
+        await saveContent(t, file.id, content);
+        lastContentRef.current = content;
+        setStatus("Saved");
+      } catch (e) {
+        if (e instanceof Error && e.message === "expired") {
+          recoverAuth();
+          return;
+        }
+        setStatus("Failed to save");
+      }
+    },
+    [recoverAuth],
+  );
+
+  const handleSelectFile = useCallback(
+    async (file: { id: string; name: string }) => {
+      if (!token) return;
+      // Save current file if dirty before switching
+      if (currentFileRef.current && textRef.current !== lastContentRef.current) {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        await autoSave(token, textRef.current);
+      }
+      // Load selected file
+      setCurrentFile(file);
+      currentFileRef.current = file;
+      setStatus("Loading...");
+      try {
+        const content = await loadContent(token, file.id);
         setText(content);
         textRef.current = content;
         lastContentRef.current = content;
         setStatus("Loaded");
-      } else {
-        setStatus("No files. Create a new one.");
+        setSidebarOpen(false);
+      } catch (e) {
+        if (e instanceof Error && e.message === "expired") {
+          recoverAuth();
+          return;
+        }
+        setStatus("Failed to load");
       }
-    } catch (e) {
-      if (e instanceof Error && e.message === "expired") {
-        recoverAuth();
-        return;
-      }
-      setStatus("Failed to load files");
-    }
-  }, [recoverAuth]);
-
-  const autoSave = useCallback(async (t: string, content: string) => {
-    if (!t) return;
-    const file = currentFileRef.current;
-    if (!file) return;
-    if (content === lastContentRef.current) return;
-    setStatus("Saving...");
-    try {
-      await saveContent(t, file.id, content);
-      lastContentRef.current = content;
-      setStatus("Saved");
-    } catch (e) {
-      if (e instanceof Error && e.message === "expired") {
-        recoverAuth();
-        return;
-      }
-      setStatus("Failed to save");
-    }
-  }, [recoverAuth]);
-
-  const handleSelectFile = useCallback(async (file: { id: string; name: string }) => {
-    if (!token) return;
-    // Save current file if dirty before switching
-    if (currentFileRef.current && textRef.current !== lastContentRef.current) {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      await autoSave(token, textRef.current);
-    }
-    // Load selected file
-    setCurrentFile(file);
-    currentFileRef.current = file;
-    setStatus("Loading...");
-    try {
-      const content = await loadContent(token, file.id);
-      setText(content);
-      textRef.current = content;
-      lastContentRef.current = content;
-      setStatus("Loaded");
-      setSidebarOpen(false);
-    } catch (e) {
-      if (e instanceof Error && e.message === "expired") {
-        recoverAuth();
-        return;
-      }
-      setStatus("Failed to load");
-    }
-  }, [token, recoverAuth, autoSave]);
+    },
+    [token, recoverAuth, autoSave],
+  );
 
   const handleCreateFile = useCallback(async () => {
     if (!token) return;
@@ -162,30 +173,33 @@ function App() {
     }
   }, [token, newFileName, files, handleSelectFile, recoverAuth]);
 
-  const handleDeleteFile = useCallback(async (fileId: string, e: React.MouseEvent) => {
-    if (!token) return;
-    e.stopPropagation();
-    setStatus("Deleting...");
-    try {
-      await deleteFile(token, fileId);
-      setFiles((prev) => prev.filter((f) => f.id !== fileId));
-      if (currentFileRef.current?.id === fileId) {
-        setCurrentFile(null);
-        currentFileRef.current = null;
-        setText("");
-        textRef.current = "";
-        lastContentRef.current = "";
-        setSidebarOpen(true);
+  const handleDeleteFile = useCallback(
+    async (fileId: string, e: React.MouseEvent) => {
+      if (!token) return;
+      e.stopPropagation();
+      setStatus("Deleting...");
+      try {
+        await deleteFile(token, fileId);
+        setFiles((prev) => prev.filter((f) => f.id !== fileId));
+        if (currentFileRef.current?.id === fileId) {
+          setCurrentFile(null);
+          currentFileRef.current = null;
+          setText("");
+          textRef.current = "";
+          lastContentRef.current = "";
+          setSidebarOpen(true);
+        }
+        setStatus("Deleted");
+      } catch (e) {
+        if (e instanceof Error && e.message === "expired") {
+          recoverAuth();
+          return;
+        }
+        setStatus("Failed to delete file");
       }
-      setStatus("Deleted");
-    } catch (e) {
-      if (e instanceof Error && e.message === "expired") {
-        recoverAuth();
-        return;
-      }
-      setStatus("Failed to delete file");
-    }
-  }, [token, recoverAuth]);
+    },
+    [token, recoverAuth],
+  );
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
@@ -223,18 +237,15 @@ function App() {
 
       const id = currentFileRef.current?.id;
       if (id) {
-        void fetch(
-          `https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "text/plain; charset=utf-8",
-            },
-            body: textRef.current,
-            keepalive: true,
+        void fetch(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`, {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "text/plain; charset=utf-8",
           },
-        );
+          body: textRef.current,
+          keepalive: true,
+        });
         return;
       }
 
@@ -292,10 +303,7 @@ function App() {
                   onClick={() => void handleSelectFile(file)}
                 >
                   <span className="file-name">{file.name}</span>
-                  <button
-                    className="btn-delete"
-                    onClick={(e) => void handleDeleteFile(file.id, e)}
-                  >
+                  <button className="btn-delete" onClick={(e) => void handleDeleteFile(file.id, e)}>
                     ×
                   </button>
                 </li>
