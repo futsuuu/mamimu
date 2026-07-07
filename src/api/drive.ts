@@ -62,7 +62,7 @@ export async function saveContent(token: string, fileId: string, content: string
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Type": "application/json; charset=utf-8",
     },
     body: content,
   });

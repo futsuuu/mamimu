@@ -60,7 +60,8 @@ body {
   width: 100%;
   display: flex;
   flex-direction: column;
-  padding: 16px;
+  padding: 16px 0 0;
+  min-height: 0;
 }
 
 .main.hidden {
@@ -97,20 +98,6 @@ body {
   padding: 0 4px;
   line-height: 1;
   color: #333;
-}
-
-.new-file-input {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  font-family: inherit;
-}
-
-.new-file-input:focus {
-  outline: none;
-  border-color: #666;
 }
 
 /* File list */
@@ -164,39 +151,75 @@ body {
   color: #e33;
 }
 
-/* Editor */
-.editor-toolbar {
+/* Toolbar */
+.toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-bottom: 12px;
+  padding: 0 16px 12px;
   border-bottom: 1px solid #eee;
   margin-bottom: 12px;
 }
 
-.editor-filename {
+.filename {
   font-weight: 500;
   font-size: 0.95rem;
 }
 
-.editor {
-  width: 100%;
-  min-height: 360px;
-  padding: 12px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+/* Scrollable area (messages + input) */
+.scrollable {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px 0 16px;
+}
+
+.message-list {
+  flex: 0 0 auto;
+}
+
+.message {
+  padding: 4px 12px;
+}
+
+.message-time {
+  font-size: 0.75rem;
+  color: #aaa;
+  margin-bottom: 1px;
+}
+
+.message-text {
   font-size: 0.95rem;
   line-height: 1.6;
-  resize: vertical;
-  font-family: inherit;
-  flex: 1;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
-.editor:focus {
+/* Input area */
+.input-area {
+  flex: 1 0 auto;
+  min-height: 120px;
+}
+
+.message-input {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: none;
   outline: none;
-  border-color: #666;
+  resize: none;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  background: transparent;
+  overflow-y: hidden;
+  box-sizing: border-box;
 }
 
+/* Empty state */
 .empty-state {
   display: flex;
   align-items: center;
@@ -206,8 +229,10 @@ body {
   font-size: 0.95rem;
 }
 
+/* Status */
 .status {
   margin-top: 8px;
+  padding: 0 16px 16px;
   font-size: 0.85rem;
   color: #666;
 }
@@ -231,7 +256,7 @@ body {
     display: flex;
   }
 
-  .editor-toolbar {
+  .toolbar {
     display: none;
   }
 

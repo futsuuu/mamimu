@@ -6,6 +6,13 @@ import { listFiles, createFile, deleteFile, saveContent, loadContent } from "./a
 import "./App.css";
 
 const TOKEN_KEY = "mamimu_token";
+const SAVE_THROTTLE_MS = 1000;
+
+interface Message {
+  id: string;
+  text: string;
+  timestamp: number;
+}
 
 function loadToken(): string | null {
   try {
@@ -33,16 +40,18 @@ function App() {
   const [token, setToken] = useState<string | null>(loadToken);
   const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
   const [currentFile, setCurrentFile] = useState<{ id: string; name: string } | null>(null);
-  const [text, setText] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputText, setInputText] = useState("");
   const [status, setStatus] = useState(token ? "Signed in" : "");
-  const [showNewInput, setShowNewInput] = useState(false);
-  const [newFileName, setNewFileName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const currentFileRef = useRef<{ id: string; name: string } | null>(null);
-  const lastContentRef = useRef("");
+  const messagesRef = useRef<Message[]>([]);
+  const scrollableRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const textRef = useRef("");
+  const dirtyRef = useRef(false);
+  const savingRef = useRef(false);
 
   const login = useGoogleLogin({
     scope: "https://www.googleapis.com/auth/drive.appdata",
@@ -63,45 +72,21 @@ function App() {
     setStatus("Session expired. Sign in again.");
   }, []);
 
-  const loadFileList = useCallback(
-    async (t: string) => {
-      setStatus("Loading files...");
-      try {
-        const list = await listFiles(t);
-        setFiles(list);
-        if (list.length > 0) {
-          const first = list[0];
-          setCurrentFile(first);
-          currentFileRef.current = first;
-          const content = await loadContent(t, first.id);
-          setText(content);
-          textRef.current = content;
-          lastContentRef.current = content;
-          setStatus("Loaded");
-        } else {
-          setStatus("No files. Create a new one.");
-        }
-      } catch (e) {
-        if (e instanceof Error && e.message === "expired") {
-          recoverAuth();
-          return;
-        }
-        setStatus("Failed to load files");
+  function parseMessages(content: string): Message[] {
+    try {
+      const data = JSON.parse(content);
+      if (data && Array.isArray(data.messages)) {
+        return data.messages as Message[];
       }
-    },
-    [recoverAuth],
-  );
+    } catch {}
+    return [];
+  }
 
-  const autoSave = useCallback(
-    async (t: string, content: string) => {
-      if (!t) return;
-      const file = currentFileRef.current;
-      if (!file) return;
-      if (content === lastContentRef.current) return;
+  const saveMessages = useCallback(
+    async (t: string, fileId: string, msgs: Message[]) => {
       setStatus("Saving...");
       try {
-        await saveContent(t, file.id, content);
-        lastContentRef.current = content;
+        await saveContent(t, fileId, JSON.stringify({ messages: msgs }));
         setStatus("Saved");
       } catch (e) {
         if (e instanceof Error && e.message === "expired") {
@@ -114,26 +99,50 @@ function App() {
     [recoverAuth],
   );
 
+  const loadFileList = useCallback(
+    async (t: string) => {
+      setStatus("Loading files...");
+      try {
+        const list = await listFiles(t);
+        setFiles(list);
+        if (list.length > 0) {
+          const first = list[0];
+          setCurrentFile(first);
+          currentFileRef.current = first;
+          const content = await loadContent(t, first.id);
+          const parsed = parseMessages(content);
+          setMessages(parsed);
+          messagesRef.current = parsed;
+          setStatus("Loaded");
+        } else {
+          setStatus("No threads. Create a new one.");
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === "expired") {
+          recoverAuth();
+          return;
+        }
+        setStatus("Failed to load files");
+      }
+    },
+    [recoverAuth],
+  );
+
   const handleSelectFile = useCallback(
     async (file: { id: string; name: string }) => {
       if (!token) return;
-      // Save current file if dirty before switching
-      if (currentFileRef.current && textRef.current !== lastContentRef.current) {
-        if (saveTimerRef.current) {
-          clearTimeout(saveTimerRef.current);
-          saveTimerRef.current = null;
-        }
-        await autoSave(token, textRef.current);
-      }
-      // Load selected file
+
+      await flushSave();
+
       setCurrentFile(file);
       currentFileRef.current = file;
+      setInputText("");
       setStatus("Loading...");
       try {
         const content = await loadContent(token, file.id);
-        setText(content);
-        textRef.current = content;
-        lastContentRef.current = content;
+        const parsed = parseMessages(content);
+        setMessages(parsed);
+        messagesRef.current = parsed;
         setStatus("Loaded");
         setSidebarOpen(false);
       } catch (e) {
@@ -144,24 +153,23 @@ function App() {
         setStatus("Failed to load");
       }
     },
-    [token, recoverAuth, autoSave],
+    [token, recoverAuth],
   );
 
   const handleCreateFile = useCallback(async () => {
     if (!token) return;
-    const name = newFileName.trim();
-    if (!name) return;
-    if (files.some((f) => f.name === name)) {
-      setStatus("A file with that name already exists");
-      return;
+    let n = 1;
+    let name = "New Thread";
+    while (files.some((f) => f.name === name)) {
+      n++;
+      name = `New Thread (${n})`;
     }
     setStatus("Creating...");
     try {
       const id = await createFile(token, name);
+      await saveContent(token, id, JSON.stringify({ messages: [] }));
       const file = { id, name };
       setFiles((prev) => [...prev, file]);
-      setShowNewInput(false);
-      setNewFileName("");
       await handleSelectFile(file);
       setStatus("Created");
     } catch (e) {
@@ -169,9 +177,9 @@ function App() {
         recoverAuth();
         return;
       }
-      setStatus("Failed to create file");
+      setStatus("Failed to create thread");
     }
-  }, [token, newFileName, files, handleSelectFile, recoverAuth]);
+  }, [token, files, handleSelectFile, recoverAuth]);
 
   const handleDeleteFile = useCallback(
     async (fileId: string, e: React.MouseEvent) => {
@@ -184,9 +192,8 @@ function App() {
         if (currentFileRef.current?.id === fileId) {
           setCurrentFile(null);
           currentFileRef.current = null;
-          setText("");
-          textRef.current = "";
-          lastContentRef.current = "";
+          setMessages([]);
+          messagesRef.current = [];
           setSidebarOpen(true);
         }
         setStatus("Deleted");
@@ -195,31 +202,99 @@ function App() {
           recoverAuth();
           return;
         }
-        setStatus("Failed to delete file");
+        setStatus("Failed to delete thread");
       }
     },
     [token, recoverAuth],
   );
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = e.target.value;
-    setText(newText);
-    textRef.current = newText;
+  const throttledSave = useCallback(() => {
+    dirtyRef.current = true;
 
+    if (saveTimerRef.current !== null || savingRef.current) return;
+
+    const fire = async () => {
+      savingRef.current = true;
+      dirtyRef.current = false;
+      if (token && currentFileRef.current) {
+        await saveMessages(token, currentFileRef.current.id, messagesRef.current);
+      }
+      savingRef.current = false;
+
+      saveTimerRef.current = setTimeout(() => {
+        saveTimerRef.current = null;
+        if (dirtyRef.current) {
+          void fire();
+        }
+      }, SAVE_THROTTLE_MS);
+    };
+
+    void fire();
+  }, [token, saveMessages]);
+
+  const flushSave = useCallback(async () => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
     }
-    saveTimerRef.current = setTimeout(() => {
-      if (token) {
-        void autoSave(token, textRef.current);
-      }
-    }, 1500);
+    dirtyRef.current = false;
+    if (token && currentFileRef.current && messagesRef.current.length > 0) {
+      await saveMessages(token, currentFileRef.current.id, messagesRef.current);
+    }
+  }, [token, saveMessages]);
+
+  const handleSend = useCallback(() => {
+    const text = inputText.trim();
+    if (!text || !token || !currentFileRef.current) return;
+
+    const msg: Message = {
+      id: crypto.randomUUID(),
+      text,
+      timestamp: Date.now(),
+    };
+
+    const updated = [...messagesRef.current, msg];
+    messagesRef.current = updated;
+    setMessages(updated);
+    setInputText("");
+
+    throttledSave();
+  }, [inputText, token, throttledSave]);
+
+  const autoResize = useCallback(() => {
+    const ta = inputRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.max(ta.scrollHeight, 120)}px`;
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value);
+    autoResize();
   };
 
-  // useEffect is needed here because there is no DOM event
-  // to hook into for "app just mounted with a cached token".
-  // All other side effects (auto-save, load-on-signin) are
-  // handled in event handlers (onChange / onSuccess).
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && e.ctrlKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  useEffect(() => {
+    if (scrollableRef.current) {
+      scrollableRef.current.scrollTop = scrollableRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = `${Math.max(inputRef.current.scrollHeight, 120)}px`;
+    }
+    const timer = setTimeout(autoResize, 0);
+    return () => clearTimeout(timer);
+  }, [currentFile]);
+
   useEffect(() => {
     if (token) {
       void loadFileList(token);
@@ -228,24 +303,28 @@ function App() {
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (!token || textRef.current === lastContentRef.current) return;
+      if (!token || !currentFileRef.current) return;
 
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
+      dirtyRef.current = false;
 
-      const id = currentFileRef.current?.id;
-      if (id) {
-        void fetch(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "text/plain; charset=utf-8",
+      const msgs = messagesRef.current;
+      if (msgs.length > 0) {
+        void fetch(
+          `https://www.googleapis.com/upload/drive/v3/files/${currentFileRef.current.id}?uploadType=media`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json; charset=utf-8",
+            },
+            body: JSON.stringify({ messages: msgs }),
+            keepalive: true,
           },
-          body: textRef.current,
-          keepalive: true,
-        });
+        );
         return;
       }
 
@@ -258,6 +337,11 @@ function App() {
 
   const hideSidebar = !sidebarOpen && !!currentFile;
   const hideMain = sidebarOpen || !currentFile;
+
+  function formatTime(ts: number): string {
+    const d = new Date(ts);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
 
   return (
     <div className="container">
@@ -273,27 +357,9 @@ function App() {
           <aside className={`sidebar${hideSidebar ? " hidden" : ""}`}>
             <div className="sidebar-header">
               <h1 className="sidebar-title">mamimu</h1>
-              {showNewInput ? (
-                <input
-                  className="new-file-input"
-                  value={newFileName}
-                  onChange={(e) => setNewFileName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      void handleCreateFile();
-                    } else if (e.key === "Escape") {
-                      setShowNewInput(false);
-                      setNewFileName("");
-                    }
-                  }}
-                  placeholder="File name..."
-                  autoFocus
-                />
-              ) : (
-                <button className="btn btn-new" onClick={() => setShowNewInput(true)}>
-                  + New
-                </button>
-              )}
+              <button className="btn btn-new" onClick={() => void handleCreateFile()}>
+                + New
+              </button>
             </div>
             <ul className="file-list">
               {files.map((file) => (
@@ -313,22 +379,36 @@ function App() {
           <main className={`main${hideMain ? " hidden" : ""}`}>
             {currentFile ? (
               <>
-                <div className="editor-toolbar">
+                <div className="toolbar">
                   <button className="btn-back" onClick={() => setSidebarOpen(true)}>
                     ←
                   </button>
-                  <span className="editor-filename">{currentFile.name}</span>
+                  <span className="filename">{currentFile.name}</span>
                 </div>
-                <textarea
-                  className="editor"
-                  value={text}
-                  onChange={handleTextChange}
-                  placeholder="Type your note..."
-                />
+                <div className="scrollable" ref={scrollableRef}>
+                  <div className="message-list">
+                    {messages.map((msg) => (
+                      <div key={msg.id} className="message">
+                        <div className="message-time">{formatTime(msg.timestamp)}</div>
+                        <div className="message-text">{msg.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="input-area">
+                    <textarea
+                      ref={inputRef}
+                      className="message-input"
+                      value={inputText}
+                      onChange={handleInputChange}
+                      onKeyDown={handleInputKeyDown}
+                      placeholder="Type a message..."
+                    />
+                  </div>
+                </div>
               </>
             ) : (
               <div className="empty-state">
-                <p>Select a file or create a new one</p>
+                <p>Select a thread or create a new one</p>
               </div>
             )}
             {status && <p className="status">{status}</p>}
