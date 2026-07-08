@@ -229,13 +229,14 @@ function App() {
   }, [token, saveMessages]);
 
   const handleSend = useCallback(
-    (text: string) => {
+    (text: string, level: number) => {
       if (!text || !token || !currentFileRef.current) return;
 
       const msg: Message = {
         id: crypto.randomUUID(),
         text,
         timestamp: Date.now(),
+        level,
       };
 
       const updated = [...messagesRef.current, msg];
