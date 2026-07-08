@@ -7,10 +7,10 @@
     "dev": "vite",
     "build": "oxlint src/ && vite build",
     "preview": "vite preview",
-    "format": "oxfmt src/",
-    "format:check": "oxfmt --check src/",
-    "lint": "oxlint src/",
-    "lint:fix": "oxlint --fix src/"
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.1",

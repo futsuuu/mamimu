@@ -1,3 +1,15 @@
 [tools]
 node = "26"
 pnpm = "11"
+
+[tasks.build]
+description = "Build the project"
+run = "pnpm run build"
+
+[tasks.check]
+description = "Run format check, lint"
+run = ["mise fmt --check", "pnpm run format:check", "pnpm run lint"]
+
+[tasks.fix]
+description = "Auto-format and fix lint issues"
+run = ["mise fmt", "pnpm run format", "pnpm run lint:fix"]
