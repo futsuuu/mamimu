@@ -3,28 +3,22 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { buildTree } from "../store";
 import type { Message, TreeNode, MessageBlockMode } from "../types";
 
-const MAX_LEVEL = 20;
+const MAX_GUIDE_DEPTH = 20;
 
-function NestIndent({
-  level,
-  depth = 0,
-  children,
-}: {
-  level: number;
-  depth?: number;
-  children: React.ReactNode;
-}) {
-  if (depth >= MAX_LEVEL) return children;
-  return (
-    <div
-      className={depth < level ? "border-0 border-l border-solid border-gray-200" : ""}
-      style={{ paddingLeft: depth < level ? "1.5rem" : "0" }}
-    >
-      <NestIndent level={level} depth={depth + 1}>
-        {children}
-      </NestIndent>
-    </div>
-  );
+function IndentGuides({ level, children }: { level: number; children: React.ReactNode }) {
+  let content = children;
+  for (let i = MAX_GUIDE_DEPTH - 1; i >= 0; i--) {
+    const show = i < level;
+    content = (
+      <div
+        className={show ? "border-0 border-l border-solid border-gray-200" : ""}
+        style={{ paddingLeft: show ? "1.5rem" : "0" }}
+      >
+        {content}
+      </div>
+    );
+  }
+  return content;
 }
 
 function MessageBlock({
@@ -192,7 +186,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           </div>
           <div className="flex-1 min-h-[120px]">
             <div className="pl-3 min-h-full">
-              <NestIndent level={level}>
+              <IndentGuides level={level}>
                 <MessageBlock
                   mode={{ kind: "edit-new" }}
                   text=""
@@ -209,7 +203,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
                   }}
                   placeholder="Type a message..."
                 />
-              </NestIndent>
+              </IndentGuides>
             </div>
           </div>
         </div>
