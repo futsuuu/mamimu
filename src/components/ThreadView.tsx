@@ -9,11 +9,6 @@ interface Props {
   onBack: () => void;
 }
 
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
 export default function ThreadView({ currentFile, messages, onSend, onBack }: Props) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollableRef = useRef<HTMLDivElement | null>(null);
@@ -78,36 +73,37 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
         <span className="font-medium text-sm">{currentFile.name}</span>
       </div>
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col px-4 pt-4"
+        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col"
         ref={scrollableRef}
       >
-        <div className="flex-none min-w-0">
-          {messages.map((msg) => (
-            <div key={msg.id} className="px-3 py-1 min-w-0">
-              <div className="text-xs text-gray-400 mb-px">{formatTime(msg.timestamp)}</div>
-              <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">
-                {msg.text}
+        <div className="flex flex-col flex-1 mx-auto w-full max-w-6xl px-4 pt-4">
+          <div className="flex-none min-w-0">
+            {messages.map((msg) => (
+              <div key={msg.id} className="px-3 py-1 min-w-0">
+                <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">
+                  {msg.text}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-        <div className="flex-1 min-h-[120px]">
-          <textarea
-            ref={inputRef}
-            className="block w-full min-h-[120px] p-3 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
-            defaultValue=""
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            onCompositionStart={() => {
-              composingRef.current = true;
-            }}
-            onCompositionEnd={() => {
-              composingRef.current = false;
-              inputValueRef.current = inputRef.current?.value ?? "";
-              autoResize();
-            }}
-            placeholder="Type a message..."
-          />
+            ))}
+          </div>
+          <div className="flex-1 min-h-[120px]">
+            <textarea
+              ref={inputRef}
+              className="block w-full min-h-[120px] p-3 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
+              defaultValue=""
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onCompositionStart={() => {
+                composingRef.current = true;
+              }}
+              onCompositionEnd={() => {
+                composingRef.current = false;
+                inputValueRef.current = inputRef.current?.value ?? "";
+                autoResize();
+              }}
+              placeholder="Type a message..."
+            />
+          </div>
         </div>
       </div>
     </>

@@ -290,7 +290,7 @@ function App() {
   const hideMain = sidebarOpen || !currentFile;
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-white">
       {!token ? (
         <AuthScreen onLogin={() => login()} />
       ) : (
