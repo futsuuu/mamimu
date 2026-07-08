@@ -1,18 +1,7 @@
-import { defineConfig, presetWind3, presetWebFonts } from "unocss";
+import { defineConfig, presetWind3 } from "unocss";
 
 export default defineConfig({
-  presets: [
-    presetWind3(),
-    presetWebFonts({
-      provider: "google",
-      fonts: {
-        sans: [
-          { name: "Inter", weights: ["400", "500"] },
-          { name: "Noto Sans JP", weights: ["400", "500"] },
-        ],
-      },
-    }),
-  ],
+  presets: [presetWind3()],
   preflights: [
     {
       getCSS: () => `
@@ -23,12 +12,15 @@ html, body, #root {
   padding: 0;
 }
 body {
-  font-family: 'Inter', 'Noto Sans JP', sans-serif;
+  font-family: 'Inter', 'Noto Sans JP', 'Helvetica Neue', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', 'MS PGothic', sans-serif;
+  font-feature-settings: 'ss02';
+  text-autospace: normal;
   background: #f5f5f5;
   color: #333;
 }
 button, input, textarea, select {
   font-family: inherit;
+  font-feature-settings: inherit;
 }
 `,
     },

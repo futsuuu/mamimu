@@ -1,3 +1,4 @@
+import "inter-ui/inter.css";
 import "virtual:uno.css";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { StrictMode } from "react";
