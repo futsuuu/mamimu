@@ -13,3 +13,8 @@ run = ["mise fmt --check", "pnpm run format:check", "pnpm run lint"]
 [tasks.fix]
 description = "Auto-format and fix lint issues"
 run = ["mise fmt", "pnpm run format", "pnpm run lint:fix"]
+
+[tasks.test]
+description = "Run tests"
+run = "pnpm run test"
+

@@ -1,4 +1,6 @@
-import type { Message, TreeNode } from "./types";
+import type { Message } from "./types";
+
+export { buildTree } from "./tree";
 
 export function parseMessages(content: string): Message[] {
   try {
@@ -12,27 +14,4 @@ export function parseMessages(content: string): Message[] {
 
 export function serializeMessages(messages: Message[]): string {
   return JSON.stringify({ messages });
-}
-
-export function buildTree(messages: Message[]): TreeNode[] {
-  const roots: TreeNode[] = [];
-  const stack: { node: TreeNode; level: number }[] = [];
-
-  for (const msg of messages) {
-    const node: TreeNode = { message: msg, children: [] };
-
-    while (stack.length > 0 && stack[stack.length - 1].level >= msg.level) {
-      stack.pop();
-    }
-
-    if (stack.length === 0) {
-      roots.push(node);
-    } else {
-      stack[stack.length - 1].node.children.push(node);
-    }
-
-    stack.push({ node, level: msg.level });
-  }
-
-  return roots;
 }
