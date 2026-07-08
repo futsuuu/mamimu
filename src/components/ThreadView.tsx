@@ -37,8 +37,8 @@ function MessageBlock({
   placeholder?: string;
   onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  onCompositionStart?: React.FormEventHandler<HTMLTextAreaElement>;
-  onCompositionEnd?: React.FormEventHandler<HTMLTextAreaElement>;
+  onCompositionStart?: React.CompositionEventHandler<HTMLTextAreaElement>;
+  onCompositionEnd?: React.CompositionEventHandler<HTMLTextAreaElement>;
 }) {
   if (mode.kind !== "view") {
     return (
