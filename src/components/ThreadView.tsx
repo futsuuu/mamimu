@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 
-import type { Message } from "../types";
+import { buildTree } from "../store";
+import type { Message, TreeNode } from "../types";
 
 const MAX_LEVEL = 20;
 
@@ -26,6 +27,28 @@ function NestIndent({
   );
 }
 
+function MessageNode({ node }: { node: TreeNode }) {
+  return (
+    <div>
+      <div className="py-1">
+        <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">
+          {node.message.text}
+        </div>
+      </div>
+      {node.children.length > 0 && (
+        <div
+          className="border-0 border-l border-solid border-gray-200"
+          style={{ paddingLeft: "1.5rem" }}
+        >
+          {node.children.map((child) => (
+            <MessageNode key={child.message.id} node={child} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   currentFile: { id: string; name: string };
   messages: Message[];
@@ -40,6 +63,8 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const inputValueRef = useRef("");
   const [level, setLevel] = useState(() => messages[messages.length - 1]?.level ?? 0);
   const messagesInitRef = useRef(false);
+
+  const tree = buildTree(messages);
 
   const autoResize = useCallback(() => {
     const ta = inputRef.current;
@@ -124,15 +149,9 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
       >
         <div className="flex flex-col flex-1 mx-auto w-full max-w-6xl px-4 pt-4">
           <div className="flex-none min-w-0">
-            {messages.map((msg) => (
-              <div key={msg.id} className="px-3 min-w-0">
-                <NestIndent level={msg.level}>
-                  <div className="py-1">
-                    <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">
-                      {msg.text}
-                    </div>
-                  </div>
-                </NestIndent>
+            {tree.map((node) => (
+              <div key={node.message.id} className="px-3 min-w-0">
+                <MessageNode node={node} />
               </div>
             ))}
           </div>

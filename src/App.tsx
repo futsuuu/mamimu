@@ -5,6 +5,7 @@ import { listFiles, createFile, deleteFile, saveContent, loadContent } from "./a
 import AuthScreen from "./components/AuthScreen";
 import Sidebar from "./components/Sidebar";
 import ThreadView from "./components/ThreadView";
+import { parseMessages, serializeMessages } from "./store";
 import type { Message } from "./types";
 
 const TOKEN_KEY = "mamimu_token";
@@ -30,16 +31,6 @@ function saveToken(token: string, expiresIn: number) {
 
 function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
-}
-
-function parseMessages(content: string): Message[] {
-  try {
-    const data = JSON.parse(content);
-    if (data && Array.isArray(data.messages)) {
-      return data.messages as Message[];
-    }
-  } catch {}
-  return [];
 }
 
 function App() {
@@ -78,7 +69,7 @@ function App() {
   const saveMessages = useCallback(
     async (t: string, fileId: string, msgs: Message[]) => {
       try {
-        await saveContent(t, fileId, JSON.stringify({ messages: msgs }));
+        await saveContent(t, fileId, serializeMessages(msgs));
       } catch (e) {
         if (e instanceof Error && e.message === "expired") {
           recoverAuth();
@@ -163,7 +154,7 @@ function App() {
     setStatus("Creating...");
     try {
       const id = await createFile(token, name);
-      await saveContent(token, id, JSON.stringify({ messages: [] }));
+      await saveContent(token, id, serializeMessages([]));
       const file = { id, name };
       setFiles((prev) => [...prev, file]);
       await handleSelectFile(file);
@@ -274,7 +265,7 @@ function App() {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json; charset=utf-8",
             },
-            body: JSON.stringify({ messages: msgs }),
+            body: serializeMessages(msgs),
             keepalive: true,
           },
         );
