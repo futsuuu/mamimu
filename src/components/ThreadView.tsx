@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 
 import { buildTree } from "../store";
-import type { Message, TreeNode } from "../types";
+import type { Message, TreeNode, MessageBlockMode } from "../types";
 
 const MAX_LEVEL = 20;
 
@@ -27,13 +27,48 @@ function NestIndent({
   );
 }
 
+function MessageBlock({
+  mode,
+  text,
+  inputRef,
+  placeholder,
+  onChange,
+  onKeyDown,
+  onCompositionStart,
+  onCompositionEnd,
+}: {
+  mode: MessageBlockMode;
+  text: string;
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  placeholder?: string;
+  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onCompositionStart?: React.FormEventHandler<HTMLTextAreaElement>;
+  onCompositionEnd?: React.FormEventHandler<HTMLTextAreaElement>;
+}) {
+  if (mode.kind !== "view") {
+    return (
+      <textarea
+        ref={inputRef}
+        className="block w-full min-h-[120px] box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
+        defaultValue={text}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        onCompositionStart={onCompositionStart}
+        onCompositionEnd={onCompositionEnd}
+        placeholder={placeholder}
+        style={{ padding: "0.75rem 0.75rem 0.75rem 0" }}
+      />
+    );
+  }
+  return <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>;
+}
+
 function MessageNode({ node }: { node: TreeNode }) {
   return (
     <div>
       <div className="py-1">
-        <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">
-          {node.message.text}
-        </div>
+        <MessageBlock mode={{ kind: "view" }} text={node.message.text} />
       </div>
       {node.children.length > 0 && (
         <div
@@ -158,10 +193,10 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           <div className="flex-1 min-h-[120px]">
             <div className="pl-3 min-h-full">
               <NestIndent level={level}>
-                <textarea
-                  ref={inputRef}
-                  className="block w-full min-h-[120px] box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
-                  defaultValue=""
+                <MessageBlock
+                  mode={{ kind: "edit-new" }}
+                  text=""
+                  inputRef={inputRef}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onCompositionStart={() => {
@@ -173,7 +208,6 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
                     autoResize();
                   }}
                   placeholder="Type a message..."
-                  style={{ padding: "0.75rem 0.75rem 0.75rem 0" }}
                 />
               </NestIndent>
             </div>

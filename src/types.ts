@@ -9,3 +9,8 @@ export interface TreeNode {
   message: Message;
   children: TreeNode[];
 }
+
+export type MessageBlockMode =
+  | { readonly kind: "view" }
+  | { readonly kind: "edit-new" }
+  | { readonly kind: "edit-existing"; readonly message: Message };
