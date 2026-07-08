@@ -10,7 +10,9 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.1",
@@ -25,6 +27,7 @@
     "oxlint": "^1.72.0",
     "oxlint-tsgolint": "^0.24.0",
     "unocss": "^66.7.4",
-    "vite": "^8.0.0"
+    "vite": "^8.0.0",
+    "vitest": "^4.1.10"
   }
 }
