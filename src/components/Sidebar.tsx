@@ -1,21 +1,23 @@
+import type { ThreadMeta } from "../store/types";
+
 interface Props {
-  files: { id: string; name: string }[];
-  currentFile: { id: string; name: string } | null;
+  threads: ThreadMeta[];
+  currentId: string | null;
   sidebarOpen: boolean;
-  onSelectFile: (file: { id: string; name: string }) => void;
+  onSelectFile: (id: string) => void;
   onCreateFile: () => void;
   onDeleteFile: (fileId: string, e: React.MouseEvent) => void;
 }
 
 export default function Sidebar({
-  files,
-  currentFile,
+  threads,
+  currentId,
   sidebarOpen,
   onSelectFile,
   onCreateFile,
   onDeleteFile,
 }: Props) {
-  const hideSidebar = !sidebarOpen && !!currentFile;
+  const hideSidebar = !sidebarOpen && !!currentId;
 
   return (
     <aside
@@ -31,16 +33,16 @@ export default function Sidebar({
         </button>
       </div>
       <ul className="list-none overflow-y-auto flex-1 p-0">
-        {files.map((file) => (
+        {threads.map((thread) => (
           <li
-            key={file.id}
-            className={`group flex justify-between items-center px-4 py-3 md:px-3 md:py-2 cursor-pointer border-b border-gray-100 hover:bg-gray-100${currentFile?.id === file.id ? " bg-white" : ""}`}
-            onClick={() => onSelectFile(file)}
+            key={thread.id}
+            className={`group flex justify-between items-center px-4 py-3 md:px-3 md:py-2 cursor-pointer border-b border-gray-100 hover:bg-gray-100${currentId === thread.id ? " bg-white" : ""}`}
+            onClick={() => onSelectFile(thread.id)}
           >
-            <span className="truncate flex-1 text-sm">{file.name}</span>
+            <span className="truncate flex-1 text-sm">{thread.name}</span>
             <button
               className="opacity-0 bg-transparent border-none cursor-pointer text-gray-400 text-lg px-1 leading-none group-hover:opacity-100 hover:text-red-500"
-              onClick={(e) => onDeleteFile(file.id, e)}
+              onClick={(e) => onDeleteFile(thread.id, e)}
             >
               ×
             </button>

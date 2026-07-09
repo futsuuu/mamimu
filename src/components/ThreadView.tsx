@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 
-import { buildTree } from "../store";
+import { buildTree } from "../tree";
 import type { Message, TreeNode, MessageBlockMode } from "../types";
 
 const MAX_GUIDE_DEPTH = 20;

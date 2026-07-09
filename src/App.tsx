@@ -4,168 +4,129 @@ import AuthScreen from "./components/AuthScreen";
 import Sidebar from "./components/Sidebar";
 import ThreadView from "./components/ThreadView";
 import { CLIENT_ID } from "./config";
-import { listFiles, createFile, deleteFile, saveContent, loadContent } from "./google-api/drive";
 import { useGoogleAuth } from "./google-api/oauth";
-import { parseMessages, serializeMessages } from "./store";
+import { DriveStore } from "./store/drive";
+import { IndexedDBStore } from "./store/indexed-db";
+import { SyncedStore } from "./store/synced";
+import type { Store, ThreadData, ThreadMeta } from "./store/types";
 import type { Message } from "./types";
 
 const SAVE_THROTTLE_MS = 1000;
 
 function App() {
-  const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
-  const [currentFile, setCurrentFile] = useState<{ id: string; name: string } | null>(null);
+  const [threads, setThreads] = useState<ThreadMeta[]>([]);
+  const [currentMeta, setCurrentMeta] = useState<ThreadMeta | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const currentFileRef = useRef<{ id: string; name: string } | null>(null);
+  const currentIdRef = useRef<string | null>(null);
+  const currentNameRef = useRef("");
+  const currentDriveFileIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
+  const storeRef = useRef<Store | null>(null);
+
+  const selectThread = useCallback(async (id: string, s?: Store) => {
+    const st = s ?? storeRef.current;
+    if (!st) return;
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    dirtyRef.current = false;
+
+    currentIdRef.current = id;
+    setCurrentMeta(null);
+    setMessages([]);
+    messagesRef.current = [];
+    setSidebarOpen(false);
+    setStatus("Loading...");
+
+    try {
+      const data = await st.getThread(id);
+      if (data) {
+        setMessages(data.messages);
+        messagesRef.current = data.messages;
+        currentNameRef.current = data.name;
+        currentDriveFileIdRef.current = data.driveFileId;
+        setCurrentMeta({ id: data.id, name: data.name, driveFileId: data.driveFileId });
+        setStatus("Loaded");
+      }
+    } catch {
+      setStatus("Failed to load");
+    }
+  }, []);
 
   const { token, login, recoverAuth } = useGoogleAuth({
     clientId: CLIENT_ID,
     scope: "https://www.googleapis.com/auth/drive.appdata",
-    onInitialToken: (t) => {
-      void loadFileList(t);
+    onInitialToken: () => {
+      void initApp();
     },
     onStatus: setStatus,
   });
 
-  const loadFileList = useCallback(
-    async (t: string) => {
-      setStatus("Loading files...");
-      try {
-        const list = await listFiles(t);
-        setFiles(list);
-        if (list.length > 0) {
-          const first = list[0];
-          setCurrentFile(first);
-          currentFileRef.current = first;
-          const content = await loadContent(t, first.id);
-          const parsed = parseMessages(content);
-          setMessages(parsed);
-          messagesRef.current = parsed;
-          setStatus("Loaded");
-        } else {
-          setStatus("No threads. Create a new one.");
-        }
-      } catch (e) {
-        if (e instanceof Error && e.message === "expired") {
-          recoverAuth();
-          return;
-        }
-        setStatus("Failed to load files");
-      }
-    },
-    [recoverAuth],
-  );
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
 
-  // Load file list on mount if a stored token exists
+  const initPromiseRef = useRef<Promise<void> | null>(null);
+
+  const initApp = useCallback(async () => {
+    if (storeRef.current) return;
+    if (!initPromiseRef.current) {
+      initPromiseRef.current = (async () => {
+        const onExpired = () => recoverAuth();
+
+        const primary = new IndexedDBStore();
+        await primary.init();
+        const secondary = new DriveStore(() => tokenRef.current!, { onTokenExpired: onExpired });
+        await secondary.init();
+        const s = new SyncedStore(primary, secondary, {
+          onTokenExpired: onExpired,
+          onSyncError: () => setStatus("Sync error"),
+        });
+        await s.init();
+        storeRef.current = s;
+
+        try {
+          const list = await s.listThreads();
+          setThreads(list);
+          if (list.length > 0) {
+            const first = list[0];
+            await selectThread(first.id, s);
+          } else {
+            setStatus("No threads. Create a new one.");
+          }
+        } catch {
+          setStatus("Failed to load threads");
+        }
+      })();
+    }
+    return initPromiseRef.current;
+  }, [recoverAuth, selectThread]);
+
   useEffect(() => {
-    if (token) void loadFileList(token);
+    if (token) void initApp();
   }, []);
 
-  const saveMessages = useCallback(
-    async (t: string, fileId: string, msgs: Message[]) => {
-      try {
-        await saveContent(t, fileId, serializeMessages(msgs));
-      } catch (e) {
-        if (e instanceof Error && e.message === "expired") {
-          recoverAuth();
-          return;
-        }
-        setStatus("Failed to save");
-      }
-    },
-    [recoverAuth],
-  );
+  const saveMessages = useCallback(async (msgs: Message[]) => {
+    const s = storeRef.current;
+    const id = currentIdRef.current;
+    if (!s || !id) return;
 
-  const handleSelectFile = useCallback(
-    async (file: { id: string; name: string }) => {
-      if (!token) return;
-
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      dirtyRef.current = false;
-
-      setCurrentFile(file);
-      currentFileRef.current = file;
-      setMessages([]);
-      messagesRef.current = [];
-      setStatus("Loading...");
-      setSidebarOpen(false);
-      try {
-        const content = await loadContent(token, file.id);
-        const parsed = parseMessages(content);
-        setMessages(parsed);
-        messagesRef.current = parsed;
-        setStatus("Loaded");
-      } catch (e) {
-        if (e instanceof Error && e.message === "expired") {
-          recoverAuth();
-          return;
-        }
-        setStatus("Failed to load");
-      }
-    },
-    [token, recoverAuth],
-  );
-
-  const handleCreateFile = useCallback(async () => {
-    if (!token) return;
-    let n = 1;
-    let name = "New Thread";
-    while (files.some((f) => f.name === name)) {
-      n++;
-      name = `New Thread (${n})`;
-    }
-    setStatus("Creating...");
-    try {
-      const id = await createFile(token, name);
-      await saveContent(token, id, serializeMessages([]));
-      const file = { id, name };
-      setFiles((prev) => [...prev, file]);
-      await handleSelectFile(file);
-      setStatus("Created");
-    } catch (e) {
-      if (e instanceof Error && e.message === "expired") {
-        recoverAuth();
-        return;
-      }
-      setStatus("Failed to create thread");
-    }
-  }, [token, files, handleSelectFile, recoverAuth]);
-
-  const handleDeleteFile = useCallback(
-    async (fileId: string, e: React.MouseEvent) => {
-      if (!token) return;
-      e.stopPropagation();
-      setStatus("Deleting...");
-      try {
-        await deleteFile(token, fileId);
-        setFiles((prev) => prev.filter((f) => f.id !== fileId));
-        if (currentFileRef.current?.id === fileId) {
-          setCurrentFile(null);
-          currentFileRef.current = null;
-          setMessages([]);
-          messagesRef.current = [];
-          setSidebarOpen(true);
-        }
-        setStatus("Deleted");
-      } catch (e) {
-        if (e instanceof Error && e.message === "expired") {
-          recoverAuth();
-          return;
-        }
-        setStatus("Failed to delete thread");
-      }
-    },
-    [token, recoverAuth],
-  );
+    const data: ThreadData = {
+      id,
+      name: currentNameRef.current,
+      driveFileId: currentDriveFileIdRef.current,
+      messages: msgs,
+    };
+    const saved = await s.putThread(data);
+    currentDriveFileIdRef.current = saved.driveFileId;
+  }, []);
 
   const throttledSave = useCallback(() => {
     dirtyRef.current = true;
@@ -175,9 +136,7 @@ function App() {
     const fire = async () => {
       savingRef.current = true;
       dirtyRef.current = false;
-      if (token && currentFileRef.current) {
-        await saveMessages(token, currentFileRef.current.id, messagesRef.current);
-      }
+      await saveMessages(messagesRef.current);
       savingRef.current = false;
 
       saveTimerRef.current = setTimeout(() => {
@@ -189,11 +148,67 @@ function App() {
     };
 
     void fire();
-  }, [token, saveMessages]);
+  }, [saveMessages]);
+
+  const handleSelectFile = useCallback(
+    async (id: string) => {
+      await selectThread(id);
+    },
+    [selectThread],
+  );
+
+  const handleCreateFile = useCallback(async () => {
+    const s = storeRef.current;
+    if (!s) return;
+
+    let n = 1;
+    let name = "New Thread";
+    while (threads.some((f) => f.name === name)) {
+      n++;
+      name = `New Thread (${n})`;
+    }
+    setStatus("Creating...");
+    try {
+      const data: ThreadData = {
+        id: crypto.randomUUID(),
+        name,
+        driveFileId: null,
+        messages: [],
+      };
+      const saved = await s.putThread(data);
+      const meta: ThreadMeta = { id: saved.id, name: saved.name, driveFileId: saved.driveFileId };
+      setThreads((prev) => [...prev, meta]);
+      await selectThread(saved.id, s);
+      setStatus("Created");
+    } catch {
+      setStatus("Failed to create thread");
+    }
+  }, [threads, selectThread]);
+
+  const handleDeleteFile = useCallback(async (fileId: string, e: React.MouseEvent) => {
+    const s = storeRef.current;
+    if (!s) return;
+    e.stopPropagation();
+    setStatus("Deleting...");
+    try {
+      await s.deleteThread(fileId);
+      setThreads((prev) => prev.filter((f) => f.id !== fileId));
+      if (currentIdRef.current === fileId) {
+        setCurrentMeta(null);
+        currentIdRef.current = null;
+        setMessages([]);
+        messagesRef.current = [];
+        setSidebarOpen(true);
+      }
+      setStatus("Deleted");
+    } catch {
+      setStatus("Failed to delete thread");
+    }
+  }, []);
 
   const handleSend = useCallback(
     (text: string, level: number) => {
-      if (!text || !token || !currentFileRef.current) return;
+      if (!text || !storeRef.current || !currentIdRef.current) return;
 
       const msg: Message = {
         id: crypto.randomUUID(),
@@ -208,43 +223,34 @@ function App() {
 
       throttledSave();
     },
-    [token, throttledSave],
+    [throttledSave],
   );
 
   useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (!token || !currentFileRef.current) return;
+    const handler = () => {
+      if (document.visibilityState === "hidden" && storeRef.current && currentIdRef.current) {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        dirtyRef.current = false;
 
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
+        const msgs = messagesRef.current;
+        if (msgs.length > 0) {
+          void storeRef.current.putThread({
+            id: currentIdRef.current,
+            name: currentNameRef.current,
+            driveFileId: currentDriveFileIdRef.current,
+            messages: msgs,
+          });
+        }
       }
-      dirtyRef.current = false;
-
-      const msgs = messagesRef.current;
-      if (msgs.length > 0) {
-        void fetch(
-          `https://www.googleapis.com/upload/drive/v3/files/${currentFileRef.current.id}?uploadType=media`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json; charset=utf-8",
-            },
-            body: serializeMessages(msgs),
-            keepalive: true,
-          },
-        );
-        return;
-      }
-
-      e.preventDefault();
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [token]);
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, []);
 
-  const hideMain = sidebarOpen || !currentFile;
+  const hideMain = sidebarOpen || !currentMeta;
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
@@ -253,8 +259,8 @@ function App() {
       ) : (
         <>
           <Sidebar
-            files={files}
-            currentFile={currentFile}
+            threads={threads}
+            currentId={currentMeta?.id ?? null}
             sidebarOpen={sidebarOpen}
             onSelectFile={handleSelectFile}
             onCreateFile={handleCreateFile}
@@ -263,9 +269,9 @@ function App() {
           <main
             className={`${hideMain ? "hidden md:flex" : "flex"} flex-col w-full min-h-0 md:flex-1 bg-white`}
           >
-            {currentFile ? (
+            {currentMeta ? (
               <ThreadView
-                currentFile={currentFile}
+                currentFile={{ id: currentMeta.id, name: currentMeta.name }}
                 messages={messages}
                 onSend={handleSend}
                 onBack={() => setSidebarOpen(true)}

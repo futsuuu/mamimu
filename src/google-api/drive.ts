@@ -79,3 +79,11 @@ export async function loadContent(token: string, fileId: string): Promise<string
 
   return res.text();
 }
+
+export async function getFileMeta(token: string, fileId: string): Promise<{ name: string }> {
+  const res = await fetch(`${API_BASE}/files/${fileId}?fields=name`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await checkResponse(res);
+  return res.json();
+}
