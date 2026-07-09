@@ -40,11 +40,7 @@ function App() {
     dirtyRef.current = false;
 
     currentIdRef.current = id;
-    setCurrentMeta(null);
-    setMessages([]);
-    messagesRef.current = [];
     setSidebarOpen(false);
-    setStatus("Loading...");
 
     try {
       const data = await st.getThread(id);
