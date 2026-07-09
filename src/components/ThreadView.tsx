@@ -173,7 +173,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
         <span className="font-medium text-sm">{currentFile.name}</span>
       </div>
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col"
+        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col pr-4"
         ref={scrollableRef}
       >
         <div className="flex flex-col flex-1 mx-auto w-full max-w-6xl px-4 pt-4">
