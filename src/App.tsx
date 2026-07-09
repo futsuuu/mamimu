@@ -1,44 +1,21 @@
-import { useGoogleLogin } from "@react-oauth/google";
 import { useState, useCallback, useRef, useEffect } from "react";
 
-import { listFiles, createFile, deleteFile, saveContent, loadContent } from "./api/drive";
 import AuthScreen from "./components/AuthScreen";
 import Sidebar from "./components/Sidebar";
 import ThreadView from "./components/ThreadView";
+import { CLIENT_ID } from "./config";
+import { listFiles, createFile, deleteFile, saveContent, loadContent } from "./google-api/drive";
+import { useGoogleAuth } from "./google-api/oauth";
 import { parseMessages, serializeMessages } from "./store";
 import type { Message } from "./types";
 
-const TOKEN_KEY = "mamimu_token";
 const SAVE_THROTTLE_MS = 1000;
 
-function loadToken(): string | null {
-  try {
-    const raw = localStorage.getItem(TOKEN_KEY);
-    if (!raw) return null;
-    const { token, expiresAt } = JSON.parse(raw);
-    if (Date.now() < expiresAt) return token;
-    localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    localStorage.removeItem(TOKEN_KEY);
-  }
-  return null;
-}
-
-function saveToken(token: string, expiresIn: number) {
-  const expiresAt = Date.now() + (expiresIn - 300) * 1000;
-  localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expiresAt }));
-}
-
-function clearToken() {
-  localStorage.removeItem(TOKEN_KEY);
-}
-
 function App() {
-  const [token, setToken] = useState<string | null>(loadToken);
   const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
   const [currentFile, setCurrentFile] = useState<{ id: string; name: string } | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [status, setStatus] = useState(token ? "Signed in" : "");
+  const [status, setStatus] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const currentFileRef = useRef<{ id: string; name: string } | null>(null);
@@ -47,39 +24,14 @@ function App() {
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
 
-  const login = useGoogleLogin({
+  const { token, login, recoverAuth } = useGoogleAuth({
+    clientId: CLIENT_ID,
     scope: "https://www.googleapis.com/auth/drive.appdata",
-    onSuccess: (res) => {
-      setToken(res.access_token);
-      saveToken(res.access_token, res.expires_in);
-      setStatus("Signed in");
-      void loadFileList(res.access_token);
+    onInitialToken: (t) => {
+      void loadFileList(t);
     },
-    onError: () => {
-      setStatus("Authentication failed");
-    },
+    onStatus: setStatus,
   });
-
-  const recoverAuth = useCallback(() => {
-    clearToken();
-    setToken(null);
-    setStatus("Session expired. Sign in again.");
-  }, []);
-
-  const saveMessages = useCallback(
-    async (t: string, fileId: string, msgs: Message[]) => {
-      try {
-        await saveContent(t, fileId, serializeMessages(msgs));
-      } catch (e) {
-        if (e instanceof Error && e.message === "expired") {
-          recoverAuth();
-          return;
-        }
-        setStatus("Failed to save");
-      }
-    },
-    [recoverAuth],
-  );
 
   const loadFileList = useCallback(
     async (t: string) => {
@@ -105,6 +57,26 @@ function App() {
           return;
         }
         setStatus("Failed to load files");
+      }
+    },
+    [recoverAuth],
+  );
+
+  // Load file list on mount if a stored token exists
+  useEffect(() => {
+    if (token) void loadFileList(token);
+  }, []);
+
+  const saveMessages = useCallback(
+    async (t: string, fileId: string, msgs: Message[]) => {
+      try {
+        await saveContent(t, fileId, serializeMessages(msgs));
+      } catch (e) {
+        if (e instanceof Error && e.message === "expired") {
+          recoverAuth();
+          return;
+        }
+        setStatus("Failed to save");
       }
     },
     [recoverAuth],
@@ -238,12 +210,6 @@ function App() {
     },
     [token, throttledSave],
   );
-
-  useEffect(() => {
-    if (token) {
-      void loadFileList(token);
-    }
-  }, []);
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
