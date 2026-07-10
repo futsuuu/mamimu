@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 
 import { MockStore } from "./mock";
 import { SyncedStore } from "./synced";
-import type { ThreadData } from "./types";
+import type { SyncStatus, ThreadData } from "./types";
 
 function makeData(overrides: Partial<ThreadData> & { id: string }): ThreadData {
   return {
@@ -48,8 +48,7 @@ describe("SyncedStore", () => {
       const data = makeData({ id: "1", name: "New" });
       await synced.putThread(data);
 
-      // After syncToSecondary microtask completes
-      await new Promise((r) => setTimeout(r, 0));
+      await synced.flushSyncQueue();
 
       const primaryData = await primary.getThread("1");
       expect(primaryData?.driveFileId).toBeTruthy();
@@ -59,7 +58,7 @@ describe("SyncedStore", () => {
       const data = makeData({ id: "1", name: "New" });
       await synced.putThread(data);
 
-      await new Promise((r) => setTimeout(r, 0));
+      await synced.flushSyncQueue();
 
       const secondaryMeta = await secondary.listThreads();
       expect(secondaryMeta).toHaveLength(1);
@@ -93,7 +92,7 @@ describe("SyncedStore", () => {
       });
       await synced.putThread(data);
 
-      await new Promise((r) => setTimeout(r, 0));
+      await synced.flushSyncQueue();
 
       const secondaryData = await secondary.getThread("drive1");
       expect(secondaryData?.messages).toHaveLength(1);
@@ -106,6 +105,7 @@ describe("SyncedStore", () => {
       await secondary.putThread(makeData({ id: "drive1", driveFileId: "drive1" }));
 
       await synced.deleteThread("1");
+      await synced.flushSyncQueue();
 
       expect(await primary.getThread("1")).toBeNull();
       expect(await secondary.getThread("drive1")).toBeNull();
@@ -119,6 +119,16 @@ describe("SyncedStore", () => {
 
       expect(await primary.getThread("1")).toBeNull();
       expect(await secondary.getThread("drive1")).toBeTruthy();
+    });
+
+    it("cancels pending put for the same thread", async () => {
+      const data = makeData({ id: "1", name: "CancelMe" });
+      await synced.putThread(data);
+      await synced.deleteThread("1");
+      await synced.flushSyncQueue();
+
+      expect(await primary.getThread("1")).toBeNull();
+      expect(await secondary.listThreads()).toHaveLength(0);
     });
   });
 
@@ -155,6 +165,91 @@ describe("SyncedStore", () => {
       await fresh.init();
       expect(await fresh.listThreads()).toEqual([]);
     });
+
+    it("does not duplicate a thread whose sync was pending before reload", async () => {
+      await primary.putThread(
+        makeData({
+          id: "local1",
+          name: "MyThread",
+          driveFileId: null,
+          messages: [{ id: "m1", text: "hello", timestamp: 100, level: 0 }],
+        }),
+      );
+      await secondary.putThread(
+        makeData({
+          id: "drive1",
+          driveFileId: "drive1",
+          name: "MyThread",
+          messages: [{ id: "m1", text: "hello", timestamp: 100, level: 0 }],
+        }),
+      );
+
+      const fresh = new SyncedStore(primary, secondary);
+      await fresh.init();
+
+      const list = await fresh.listThreads();
+      expect(list).toHaveLength(1);
+      expect(list[0].driveFileId).toBe("drive1");
+      expect(list[0].name).toBe("MyThread");
+    });
+
+    it("applies LWW merge when Drive has newer messages", async () => {
+      await primary.putThread(
+        makeData({
+          id: "local1",
+          name: "Thread",
+          driveFileId: "drive1",
+          messages: [{ id: "m1", text: "old", timestamp: 100, level: 0 }],
+        }),
+      );
+      await secondary.putThread(
+        makeData({
+          id: "drive1",
+          driveFileId: "drive1",
+          name: "Thread",
+          messages: [
+            { id: "m1", text: "old", timestamp: 100, level: 0 },
+            { id: "m2", text: "new", timestamp: 200, level: 0 },
+          ],
+        }),
+      );
+
+      const fresh = new SyncedStore(primary, secondary);
+      await fresh.init();
+
+      const data = await fresh.getThread("local1");
+      expect(data?.messages).toHaveLength(2);
+      expect(data?.messages[1].text).toBe("new");
+    });
+
+    it("preserves local when local has newer messages (LWW)", async () => {
+      await primary.putThread(
+        makeData({
+          id: "local1",
+          name: "Thread",
+          driveFileId: "drive1",
+          messages: [
+            { id: "m1", text: "old", timestamp: 100, level: 0 },
+            { id: "m2", text: "newer", timestamp: 300, level: 0 },
+          ],
+        }),
+      );
+      await secondary.putThread(
+        makeData({
+          id: "drive1",
+          driveFileId: "drive1",
+          name: "Thread",
+          messages: [{ id: "m1", text: "old", timestamp: 100, level: 0 }],
+        }),
+      );
+
+      const fresh = new SyncedStore(primary, secondary);
+      await fresh.init();
+
+      const data = await fresh.getThread("local1");
+      expect(data?.messages).toHaveLength(2);
+      expect(data?.messages[1].text).toBe("newer");
+    });
   });
 
   describe("error handling", () => {
@@ -173,10 +268,64 @@ describe("SyncedStore", () => {
       await store.init();
 
       await store.putThread(makeData({ id: "1" }));
-
-      await new Promise((r) => setTimeout(r, 0));
+      await store.flushSyncQueue();
 
       expect(expiredCalled).toBe(true);
+    });
+
+    it("retries on transient errors", async () => {
+      let callCount = 0;
+      // oxlint-disable-next-line typescript/unbound-method
+      const origPut = MockStore.prototype.putThread;
+      secondary.putThread = async function (data: ThreadData) {
+        callCount++;
+        if (callCount <= 2) throw new Error("transient");
+        return origPut.call(this, data);
+      };
+
+      await synced.putThread(makeData({ id: "1", name: "Retry" }));
+      await synced.flushSyncQueue();
+
+      expect(callCount).toBe(3);
+      const meta = await secondary.listThreads();
+      expect(meta).toHaveLength(1);
+    });
+
+    it("calls onSyncError after max retries", async () => {
+      const failStore = new MockStore(true);
+      failStore.putThread = async () => {
+        throw new Error("persistent");
+      };
+
+      let errorCalled = false;
+      const store = new SyncedStore(primary, failStore, {
+        onSyncError: () => {
+          errorCalled = true;
+        },
+      });
+      store.maxRetries = 3;
+      store.retryBaseMs = 10;
+      await store.init();
+
+      await store.putThread(makeData({ id: "1" }));
+      await store.flushSyncQueue();
+
+      expect(errorCalled).toBe(true);
+    });
+
+    it("reports sync status changes", async () => {
+      const statuses: SyncStatus[] = [];
+      const store = new SyncedStore(primary, secondary, {
+        onSyncStatus: (s) => statuses.push(s),
+      });
+      await store.init();
+
+      await store.putThread(makeData({ id: "1" }));
+      await store.flushSyncQueue();
+
+      expect(statuses).toContain("pending");
+      expect(statuses).toContain("syncing");
+      expect(statuses).toContain("idle");
     });
   });
 });

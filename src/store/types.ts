@@ -10,9 +10,12 @@ export interface ThreadData extends ThreadMeta {
   messages: Message[];
 }
 
+export type SyncStatus = "idle" | "pending" | "syncing" | "error";
+
 export interface SyncCallbacks {
   onTokenExpired?: () => void;
   onSyncError?: (error: Error) => void;
+  onSyncStatus?: (status: SyncStatus) => void;
 }
 
 export interface Store {

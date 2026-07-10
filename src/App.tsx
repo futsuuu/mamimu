@@ -50,7 +50,7 @@ function App() {
         currentNameRef.current = data.name;
         currentDriveFileIdRef.current = data.driveFileId;
         setCurrentMeta({ id: data.id, name: data.name, driveFileId: data.driveFileId });
-        setStatus("Loaded");
+        setStatus("");
       }
     } catch {
       setStatus("Failed to load");
@@ -107,6 +107,11 @@ function App() {
 
   useEffect(() => {
     if (token) void initApp();
+    return () => {
+      if (storeRef.current && storeRef.current.name === "synced") {
+        (storeRef.current as SyncedStore).stop();
+      }
+    };
   }, []);
 
   const saveMessages = useCallback(async (msgs: Message[]) => {
@@ -122,6 +127,7 @@ function App() {
     };
     const saved = await s.putThread(data);
     currentDriveFileIdRef.current = saved.driveFileId;
+    setStatus("");
   }, []);
 
   const throttledSave = useCallback(() => {
@@ -175,7 +181,6 @@ function App() {
       const meta: ThreadMeta = { id: saved.id, name: saved.name, driveFileId: saved.driveFileId };
       setThreads((prev) => [...prev, meta]);
       await selectThread(saved.id, s);
-      setStatus("Created");
     } catch {
       setStatus("Failed to create thread");
     }
@@ -196,7 +201,6 @@ function App() {
         messagesRef.current = [];
         setSidebarOpen(true);
       }
-      setStatus("Deleted");
     } catch {
       setStatus("Failed to delete thread");
     }
