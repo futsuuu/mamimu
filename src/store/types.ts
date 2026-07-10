@@ -16,6 +16,7 @@ export interface SyncCallbacks {
   onTokenExpired?: () => void;
   onSyncError?: (error: Error) => void;
   onSyncStatus?: (status: SyncStatus) => void;
+  onDataChanged?: () => void;
 }
 
 export interface Store {

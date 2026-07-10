@@ -140,6 +140,8 @@ export class SyncedStore implements Store {
       this.primary.listThreads(),
     ]);
 
+    let changed = false;
+
     const localByDriveId = new Map<string, ThreadMeta>();
     const localByName = new Map<string, ThreadMeta>();
     for (const local of localMetas) {
@@ -162,6 +164,7 @@ export class SyncedStore implements Store {
           messages: remoteData.messages,
         };
         await this.primary.putThread(localData);
+        changed = true;
         continue;
       }
 
@@ -175,7 +178,12 @@ export class SyncedStore implements Store {
       if (merged !== localData || !localData.driveFileId) {
         merged.driveFileId ??= remoteData.driveFileId;
         await this.primary.putThread(merged);
+        changed = true;
       }
+    }
+
+    if (changed) {
+      this.callbacks?.onDataChanged?.();
     }
   }
 

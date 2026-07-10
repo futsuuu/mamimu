@@ -85,6 +85,20 @@ function App() {
         const s = new SyncedStore(primary, secondary, {
           onTokenExpired: onExpired,
           onSyncError: () => setStatus("Sync error"),
+          onDataChanged: async () => {
+            const list = await s.listThreads();
+            setThreads(list);
+            if (currentIdRef.current && !dirtyRef.current && !savingRef.current) {
+              const data = await s.getThread(currentIdRef.current);
+              if (data) {
+                setMessages(data.messages);
+                messagesRef.current = data.messages;
+                currentNameRef.current = data.name;
+                currentDriveFileIdRef.current = data.driveFileId;
+                setCurrentMeta({ id: data.id, name: data.name, driveFileId: data.driveFileId });
+              }
+            }
+          },
         });
         await s.init();
         storeRef.current = s;
