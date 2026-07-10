@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import ThreadView from "./components/ThreadView";
 import { CLIENT_ID } from "./config";
 import { useGoogleAuth } from "./google-api/oauth";
+import { generateId } from "./id";
 import { DriveStore } from "./store/drive";
 import { IndexedDBStore } from "./store/indexed-db";
 import { SyncedStore } from "./store/synced";
@@ -172,7 +173,7 @@ function App() {
     setStatus("Creating...");
     try {
       const data: ThreadData = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name,
         driveFileId: null,
         messages: [],
@@ -181,8 +182,8 @@ function App() {
       const meta: ThreadMeta = { id: saved.id, name: saved.name, driveFileId: saved.driveFileId };
       setThreads((prev) => [...prev, meta]);
       await selectThread(saved.id, s);
-    } catch {
-      setStatus("Failed to create thread");
+    } catch (e) {
+      setStatus(`Failed to create thread: ${e instanceof Error ? e.message : String(e)}`);
     }
   }, [threads, selectThread]);
 
@@ -211,7 +212,7 @@ function App() {
       if (!text || !storeRef.current || !currentIdRef.current) return;
 
       const msg: Message = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         text,
         timestamp: Date.now(),
         level,

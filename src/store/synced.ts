@@ -1,3 +1,4 @@
+import { generateId } from "../id";
 import type { ThreadData, ThreadMeta } from "./types";
 import type { Store, SyncCallbacks } from "./types";
 
@@ -155,7 +156,7 @@ export class SyncedStore implements Store {
         const remoteData = await this.secondary.getThread(remote.id);
         if (!remoteData) continue;
         const localData: ThreadData = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: remoteData.name,
           driveFileId: remoteData.driveFileId,
           messages: remoteData.messages,
