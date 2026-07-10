@@ -128,7 +128,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (composingRef.current) return;
-    if (e.key === "Enter" && e.ctrlKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
