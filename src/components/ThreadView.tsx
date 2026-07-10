@@ -40,30 +40,33 @@ function MessageBlock({
   onCompositionStart?: React.CompositionEventHandler<HTMLTextAreaElement>;
   onCompositionEnd?: React.CompositionEventHandler<HTMLTextAreaElement>;
 }) {
-  if (mode.kind !== "view") {
-    return (
-      <textarea
-        ref={inputRef}
-        className="block w-full min-h-[120px] box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
-        defaultValue={text}
-        onChange={onChange}
-        onKeyDown={onKeyDown}
-        onCompositionStart={onCompositionStart}
-        onCompositionEnd={onCompositionEnd}
-        placeholder={placeholder}
-        style={{ padding: "0.75rem 0.75rem 0.75rem 0" }}
-      />
-    );
-  }
-  return <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>;
+  return (
+    <div className="py-1">
+      {mode.kind === "view" ? (
+        <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
+      ) : (
+        <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
+          <textarea
+            ref={inputRef}
+            rows={1}
+            className="block w-full p-0 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
+            defaultValue={text}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            onCompositionStart={onCompositionStart}
+            onCompositionEnd={onCompositionEnd}
+            placeholder={placeholder}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MessageNode({ node }: { node: TreeNode }) {
   return (
     <div>
-      <div className="py-1">
-        <MessageBlock mode={{ kind: "view" }} text={node.message.text} />
-      </div>
+      <MessageBlock mode={{ kind: "view" }} text={node.message.text} />
       {node.children.length > 0 && (
         <div
           className="border-0 border-l border-solid border-gray-200"
@@ -99,7 +102,11 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
     const ta = inputRef.current;
     if (!ta) return;
     ta.style.height = "auto";
-    ta.style.height = `${Math.max(ta.scrollHeight, 120)}px`;
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, []);
+
+  const focusInput = useCallback(() => {
+    inputRef.current?.focus();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -115,7 +122,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
     inputValueRef.current = "";
     if (inputRef.current) {
       inputRef.current.value = "";
-      inputRef.current.style.height = "120px";
+      autoResize();
     }
   };
 
@@ -147,7 +154,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
     inputValueRef.current = "";
     if (inputRef.current) {
       inputRef.current.value = "";
-      inputRef.current.style.height = "120px";
+      autoResize();
     }
     messagesInitRef.current = false;
     setLevel(0);
@@ -160,6 +167,10 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
       messagesInitRef.current = true;
     }
   }, [messages]);
+
+  useEffect(() => {
+    autoResize();
+  }, []);
 
   return (
     <>
@@ -176,7 +187,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
         className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col pr-4"
         ref={scrollableRef}
       >
-        <div className="flex flex-col flex-1 mx-auto w-full max-w-6xl px-4 pt-4">
+        <div className="flex flex-col flex-1 min-h-0 mx-auto w-full max-w-6xl px-4 pt-4">
           <div className="flex-none min-w-0">
             {tree.map((node) => (
               <div key={node.message.id} className="px-3 min-w-0">
@@ -184,28 +195,27 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
               </div>
             ))}
           </div>
-          <div className="flex-1 min-h-[120px]">
-            <div className="pl-3 min-h-full">
-              <IndentGuides level={level}>
-                <MessageBlock
-                  mode={{ kind: "edit-new" }}
-                  text=""
-                  inputRef={inputRef}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  onCompositionStart={() => {
-                    composingRef.current = true;
-                  }}
-                  onCompositionEnd={() => {
-                    composingRef.current = false;
-                    inputValueRef.current = inputRef.current?.value ?? "";
-                    autoResize();
-                  }}
-                  placeholder="Type a message..."
-                />
-              </IndentGuides>
-            </div>
+          <div className="px-3">
+            <IndentGuides level={level}>
+              <MessageBlock
+                mode={{ kind: "edit-new" }}
+                text=""
+                inputRef={inputRef}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onCompositionStart={() => {
+                  composingRef.current = true;
+                }}
+                onCompositionEnd={() => {
+                  composingRef.current = false;
+                  inputValueRef.current = inputRef.current?.value ?? "";
+                  autoResize();
+                }}
+                placeholder="Type a message..."
+              />
+            </IndentGuides>
           </div>
+          <div className="flex-1 cursor-text min-h-[120px]" onClick={focusInput} />
         </div>
       </div>
     </>
