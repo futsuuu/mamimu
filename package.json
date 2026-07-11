@@ -31,5 +31,11 @@
     "unocss": "^66.7.4",
     "vite": "^8.0.0",
     "vitest": "^4.1.10"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.0.0"
+    }
   }
 }
