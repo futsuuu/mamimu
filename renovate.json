@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["monthly"],
+  "rangeStrategy": "bump",
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "commitMessagePrefix": "*:",
+      "commitMessageAction": "update",
+      "groupName": "npm dependencies"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "commitMessagePrefix": ".github/workflows:",
+      "commitMessageAction": "update",
+      "groupName": "GitHub Actions"
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["monthly"]
+  }
+}
