@@ -6,6 +6,10 @@
   "labels": ["dependencies"],
   "packageRules": [
     {
+      "matchManagers": ["mise"],
+      "enabled": false
+    },
+    {
       "matchManagers": ["npm"],
       "commitMessagePrefix": "*:",
       "commitMessageAction": "update",
@@ -20,6 +24,7 @@
   ],
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["monthly"]
+    "schedule": ["monthly"],
+    "commitMessage": "*: update lockfiles"
   }
 }
