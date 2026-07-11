@@ -17,6 +17,18 @@ Run `mise tasks` or `pnpm run`.
 
 Copy `.env.example` to `.env` and fill in the values.
 
+## Commit Message Convention
+
+This project uses [Scoped Commits](https://scopedcommits.com):
+
+```
+<scope>: <description>
+
+[optional body]
+
+[optional trailer(s)]
+```
+
 ## Before Committing
 
 You should run `mise run check` to ensure code passes formatting and lint checks.
