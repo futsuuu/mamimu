@@ -94,9 +94,26 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const composingRef = useRef(false);
   const inputValueRef = useRef("");
   const [level, setLevel] = useState(() => messages[messages.length - 1]?.level ?? 0);
-  const messagesInitRef = useRef(false);
+  const [prevFileId, setPrevFileId] = useState(currentFile.id);
+  const [initialized, setInitialized] = useState(false);
 
   const tree = buildTree(messages);
+
+  if (currentFile.id !== prevFileId) {
+    setPrevFileId(currentFile.id);
+    if (messages.length > 0) {
+      setLevel(messages[messages.length - 1].level);
+      setInitialized(true);
+    } else {
+      setLevel(0);
+      setInitialized(false);
+    }
+  }
+
+  if (!initialized && messages.length > 0) {
+    setInitialized(true);
+    setLevel(messages[messages.length - 1].level);
+  }
 
   const autoResize = useCallback(() => {
     const ta = inputRef.current;
@@ -156,17 +173,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
       inputRef.current.value = "";
       autoResize();
     }
-    messagesInitRef.current = false;
-    setLevel(0);
   }, [currentFile.id]);
-
-  useEffect(() => {
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg && !messagesInitRef.current) {
-      setLevel(lastMsg.level);
-      messagesInitRef.current = true;
-    }
-  }, [messages]);
 
   useEffect(() => {
     autoResize();
