@@ -94,19 +94,24 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const composingRef = useRef(false);
   const inputValueRef = useRef("");
   const [level, setLevel] = useState(() => messages[messages.length - 1]?.level ?? 0);
-  const prevFileIdRef = useRef(currentFile.id);
-  const initializedRef = useRef(false);
+  const [prevFileId, setPrevFileId] = useState(currentFile.id);
+  const [initialized, setInitialized] = useState(false);
 
   const tree = buildTree(messages);
 
-  if (currentFile.id !== prevFileIdRef.current) {
-    prevFileIdRef.current = currentFile.id;
-    initializedRef.current = false;
-    setLevel(0);
+  if (currentFile.id !== prevFileId) {
+    setPrevFileId(currentFile.id);
+    if (messages.length > 0) {
+      setLevel(messages[messages.length - 1].level);
+      setInitialized(true);
+    } else {
+      setLevel(0);
+      setInitialized(false);
+    }
   }
 
-  if (!initializedRef.current && messages.length > 0) {
-    initializedRef.current = true;
+  if (!initialized && messages.length > 0) {
+    setInitialized(true);
     setLevel(messages[messages.length - 1].level);
   }
 
