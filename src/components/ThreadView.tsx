@@ -30,6 +30,8 @@ function MessageBlock({
   onKeyDown,
   onCompositionStart,
   onCompositionEnd,
+  selected,
+  onClick,
 }: {
   mode: MessageBlockMode;
   text: string;
@@ -39,11 +41,18 @@ function MessageBlock({
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onCompositionStart?: React.CompositionEventHandler<HTMLTextAreaElement>;
   onCompositionEnd?: React.CompositionEventHandler<HTMLTextAreaElement>;
+  selected?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <div className="py-1">
       {mode.kind === "view" ? (
-        <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
+        <div
+          className={`text-base leading-relaxed whitespace-pre-wrap break-anywhere${selected ? " bg-neutral-100" : ""}`}
+          onClick={onClick}
+        >
+          {text}
+        </div>
       ) : (
         <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
           <textarea
@@ -63,17 +72,35 @@ function MessageBlock({
   );
 }
 
-function MessageNode({ node }: { node: TreeNode }) {
+function MessageNode({
+  node,
+  selectedMessageId,
+  onMessageClick,
+}: {
+  node: TreeNode;
+  selectedMessageId: string | null;
+  onMessageClick: (id: string) => void;
+}) {
   return (
     <div>
-      <MessageBlock mode={{ kind: "view" }} text={node.message.text} />
+      <MessageBlock
+        mode={{ kind: "view" }}
+        text={node.message.text}
+        selected={selectedMessageId === node.message.id}
+        onClick={() => onMessageClick(node.message.id)}
+      />
       {node.children.length > 0 && (
         <div
           className="border-0 border-l border-solid border-gray-200"
           style={{ paddingLeft: "1.5rem" }}
         >
           {node.children.map((child) => (
-            <MessageNode key={child.message.id} node={child} />
+            <MessageNode
+              key={child.message.id}
+              node={child}
+              selectedMessageId={selectedMessageId}
+              onMessageClick={onMessageClick}
+            />
           ))}
         </div>
       )}
@@ -96,6 +123,15 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const [level, setLevel] = useState(() => messages[messages.length - 1]?.level ?? 0);
   const [prevFileId, setPrevFileId] = useState(currentFile.id);
   const [initialized, setInitialized] = useState(false);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+
+  const handleMessageClick = useCallback((id: string) => {
+    setSelectedMessageId((prev) => {
+      if (prev === null) return id;
+      if (prev !== id) return null;
+      return prev;
+    });
+  }, []);
 
   const tree = buildTree(messages);
 
@@ -219,7 +255,11 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           <div className="flex-none min-w-0">
             {tree.map((node) => (
               <div key={node.message.id} className="px-3 min-w-0">
-                <MessageNode node={node} />
+                <MessageNode
+                  node={node}
+                  selectedMessageId={selectedMessageId}
+                  onMessageClick={handleMessageClick}
+                />
               </div>
             ))}
           </div>
@@ -243,7 +283,13 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
               />
             </IndentGuides>
           </div>
-          <div className="flex-1 cursor-text min-h-[120px]" onClick={focusInput} />
+          <div
+            className="flex-1 cursor-text min-h-[120px]"
+            onClick={() => {
+              setSelectedMessageId(null);
+              focusInput();
+            }}
+          />
         </div>
       </div>
     </>
