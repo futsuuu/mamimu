@@ -143,21 +143,42 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
     }
   };
 
+  const indent = () => {
+    const lastMsg = messages[messages.length - 1];
+    const prevLevel = lastMsg?.level ?? 0;
+    setLevel((prev) => Math.min(prev + 1, prevLevel + 1));
+  };
+
+  const outdent = () => {
+    setLevel((prev) => Math.max(prev - 1, 0));
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (composingRef.current) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+      return;
     }
+    const el = e.target as HTMLTextAreaElement;
     if (e.key === "Tab") {
       e.preventDefault();
-      const lastMsg = messages[messages.length - 1];
-      const prevLevel = lastMsg?.level ?? 0;
       if (e.shiftKey) {
-        setLevel((prev) => Math.max(prev - 1, 0));
+        outdent();
       } else {
-        setLevel((prev) => Math.min(prev + 1, prevLevel + 1));
+        indent();
       }
+      return;
+    }
+    if (e.key === " " && el.selectionStart === 0 && el.selectionEnd === 0) {
+      e.preventDefault();
+      indent();
+      return;
+    }
+    if (e.key === "Backspace" && el.selectionStart === 0 && el.selectionEnd === 0) {
+      e.preventDefault();
+      outdent();
+      return;
     }
   };
 
