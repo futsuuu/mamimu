@@ -265,6 +265,32 @@ function App() {
     return () => document.removeEventListener("visibilitychange", handler);
   }, []);
 
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      dirtyRef.current = false;
+
+      const msgs = messagesRef.current;
+      if (storeRef.current && currentIdRef.current && msgs.length > 0) {
+        void storeRef.current.putThread({
+          id: currentIdRef.current,
+          name: currentNameRef.current,
+          driveFileId: currentDriveFileIdRef.current,
+          messages: msgs,
+        });
+      }
+
+      if (storeRef.current?.hasPending()) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
   const hideMain = sidebarOpen || !currentMeta;
 
   return (
