@@ -1,7 +1,15 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import {
+  useRef,
+  useEffect,
+  useCallback,
+  useState,
+  useMemo,
+  memo,
+  useSyncExternalStore,
+} from "react";
 
 import { buildTree } from "../tree";
-import type { Message, TreeNode, MessageBlockMode } from "../types";
+import type { Message, TreeNode } from "../types";
 
 const MAX_GUIDE_DEPTH = 20;
 
@@ -11,7 +19,7 @@ function IndentGuides({ level, children }: { level: number; children: React.Reac
     const show = i < level;
     content = (
       <div
-        className={show ? "border-0 border-l border-solid border-gray-200" : ""}
+        className={show ? "border-0 border-l border-solid border-gray-200 ml-2" : ""}
         style={{ paddingLeft: show ? "1.5rem" : "0" }}
       >
         {content}
@@ -21,65 +29,126 @@ function IndentGuides({ level, children }: { level: number; children: React.Reac
   return content;
 }
 
-function MessageBlock({
-  mode,
+let selectedMessageId: string | null = null;
+const messageListeners = new Map<string, Set<() => void>>();
+
+function subscribeToMessage(messageId: string, listener: () => void) {
+  if (!messageListeners.has(messageId)) {
+    messageListeners.set(messageId, new Set());
+  }
+  messageListeners.get(messageId)!.add(listener);
+  return () => {
+    const listeners = messageListeners.get(messageId);
+    listeners?.delete(listener);
+    if (listeners && listeners.size === 0) {
+      messageListeners.delete(messageId);
+    }
+  };
+}
+
+function getIsSelected(messageId: string) {
+  return selectedMessageId === messageId;
+}
+
+function selectMessage(id: string | null) {
+  const prevId = selectedMessageId;
+  if (prevId === id) return;
+  selectedMessageId = id;
+  if (prevId !== null) {
+    messageListeners.get(prevId)?.forEach((fn) => fn());
+  }
+  if (id !== null) {
+    messageListeners.get(id)?.forEach((fn) => fn());
+  }
+}
+
+const MessageView = memo(function MessageView({
   text,
+  messageId,
+  onClick,
+}: {
+  text: string;
+  messageId: string;
+  onClick?: () => void;
+}) {
+  const isSelected = useSyncExternalStore(
+    useCallback((cb: () => void) => subscribeToMessage(messageId, cb), [messageId]),
+    useCallback(() => getIsSelected(messageId), [messageId]),
+  );
+
+  return (
+    <div
+      className={`px-2 py-1 rounded hover:bg-neutral-50 cursor-pointer${isSelected ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""}`}
+      onClick={onClick}
+    >
+      <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
+    </div>
+  );
+});
+
+function MessageBlock({
   inputRef,
   placeholder,
+  defaultValue,
   onChange,
   onKeyDown,
   onCompositionStart,
   onCompositionEnd,
 }: {
-  mode: MessageBlockMode;
-  text: string;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   placeholder?: string;
+  defaultValue?: string;
   onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onCompositionStart?: React.CompositionEventHandler<HTMLTextAreaElement>;
   onCompositionEnd?: React.CompositionEventHandler<HTMLTextAreaElement>;
 }) {
   return (
-    <div className="py-1">
-      {mode.kind === "view" ? (
-        <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
-      ) : (
-        <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
-          <textarea
-            ref={inputRef}
-            rows={1}
-            className="block w-full p-0 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
-            defaultValue={text}
-            onChange={onChange}
-            onKeyDown={onKeyDown}
-            onCompositionStart={onCompositionStart}
-            onCompositionEnd={onCompositionEnd}
-            placeholder={placeholder}
-          />
-        </div>
-      )}
+    <div className="px-2 py-1 rounded">
+      <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
+        <textarea
+          ref={inputRef}
+          rows={1}
+          className="block w-full p-0 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
+          defaultValue={defaultValue ?? ""}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          onCompositionStart={onCompositionStart}
+          onCompositionEnd={onCompositionEnd}
+          placeholder={placeholder}
+        />
+      </div>
     </div>
   );
 }
 
-function MessageNode({ node }: { node: TreeNode }) {
+const MessageNode = memo(function MessageNode({
+  node,
+  onMessageClick,
+}: {
+  node: TreeNode;
+  onMessageClick: (id: string) => void;
+}) {
+  const handleClick = useCallback(() => {
+    onMessageClick(node.message.id);
+  }, [onMessageClick, node.message.id]);
+
   return (
     <div>
-      <MessageBlock mode={{ kind: "view" }} text={node.message.text} />
+      <MessageView text={node.message.text} messageId={node.message.id} onClick={handleClick} />
       {node.children.length > 0 && (
         <div
-          className="border-0 border-l border-solid border-gray-200"
+          className="border-0 border-l border-solid border-gray-200 ml-2"
           style={{ paddingLeft: "1.5rem" }}
         >
           {node.children.map((child) => (
-            <MessageNode key={child.message.id} node={child} />
+            <MessageNode key={child.message.id} node={child} onMessageClick={onMessageClick} />
           ))}
         </div>
       )}
     </div>
   );
-}
+});
 
 interface Props {
   currentFile: { id: string; name: string };
@@ -96,8 +165,11 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const [level, setLevel] = useState(() => messages[messages.length - 1]?.level ?? 0);
   const [prevFileId, setPrevFileId] = useState(currentFile.id);
   const [initialized, setInitialized] = useState(false);
+  const handleMessageClick = useCallback((id: string) => {
+    selectMessage(id);
+  }, []);
 
-  const tree = buildTree(messages);
+  const tree = useMemo(() => buildTree(messages), [messages]);
 
   if (currentFile.id !== prevFileId) {
     setPrevFileId(currentFile.id);
@@ -200,6 +272,10 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
     autoResize();
   }, []);
 
+  useEffect(() => {
+    return () => selectMessage(null);
+  }, [currentFile.id]);
+
   return (
     <>
       <div className="flex items-center gap-2 px-4 pb-3 border-b border-gray-200 mb-3 md:hidden">
@@ -219,15 +295,13 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           <div className="flex-none min-w-0">
             {tree.map((node) => (
               <div key={node.message.id} className="px-3 min-w-0">
-                <MessageNode node={node} />
+                <MessageNode node={node} onMessageClick={handleMessageClick} />
               </div>
             ))}
           </div>
           <div className="px-3">
             <IndentGuides level={level}>
               <MessageBlock
-                mode={{ kind: "edit-new" }}
-                text=""
                 inputRef={inputRef}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
@@ -243,7 +317,13 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
               />
             </IndentGuides>
           </div>
-          <div className="flex-1 cursor-text min-h-[120px]" onClick={focusInput} />
+          <div
+            className="flex-1 cursor-text min-h-[120px]"
+            onClick={() => {
+              selectMessage(null);
+              focusInput();
+            }}
+          />
         </div>
       </div>
     </>
