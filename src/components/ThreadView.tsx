@@ -94,7 +94,7 @@ function MessageBlock({
     );
   }
   return (
-    <div data-message-block="" className="px-2 py-1">
+    <div className="px-2 py-1" {...(mode.kind !== "edit-new" ? { "data-message-block": "" } : {})}>
       <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
         <textarea
           ref={inputRef}
