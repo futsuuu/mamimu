@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 
 import { buildTree } from "../tree";
-import type { Message, TreeNode, MessageBlockMode } from "../types";
+import type { Message, TreeNode } from "../types";
 
 const MAX_GUIDE_DEPTH = 20;
 
@@ -21,55 +21,57 @@ function IndentGuides({ level, children }: { level: number; children: React.Reac
   return content;
 }
 
-function MessageBlock({
-  mode,
+function MessageView({
   text,
-  inputRef,
-  placeholder,
-  onChange,
-  onKeyDown,
-  onCompositionStart,
-  onCompositionEnd,
   selected,
   onClick,
 }: {
-  mode: MessageBlockMode;
   text: string;
-  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
-  placeholder?: string;
-  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  onCompositionStart?: React.CompositionEventHandler<HTMLTextAreaElement>;
-  onCompositionEnd?: React.CompositionEventHandler<HTMLTextAreaElement>;
   selected?: boolean;
   onClick?: () => void;
 }) {
   return (
     <div
-      className={`px-2 py-1${selected && mode.kind === "view" ? " bg-neutral-100 outline-1 outline-solid outline-gray-200 rounded" : ""}`}
+      className={`px-2 py-1 rounded hover:bg-neutral-50 cursor-pointer${selected ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""}`}
+      onClick={onClick}
     >
-      {mode.kind === "view" ? (
-        <div
-          className="text-base leading-relaxed whitespace-pre-wrap break-anywhere"
-          onClick={onClick}
-        >
-          {text}
-        </div>
-      ) : (
-        <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
-          <textarea
-            ref={inputRef}
-            rows={1}
-            className="block w-full p-0 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
-            defaultValue={text}
-            onChange={onChange}
-            onKeyDown={onKeyDown}
-            onCompositionStart={onCompositionStart}
-            onCompositionEnd={onCompositionEnd}
-            placeholder={placeholder}
-          />
-        </div>
-      )}
+      <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
+    </div>
+  );
+}
+
+function MessageBlock({
+  inputRef,
+  placeholder,
+  defaultValue,
+  onChange,
+  onKeyDown,
+  onCompositionStart,
+  onCompositionEnd,
+}: {
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  placeholder?: string;
+  defaultValue?: string;
+  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onCompositionStart?: React.CompositionEventHandler<HTMLTextAreaElement>;
+  onCompositionEnd?: React.CompositionEventHandler<HTMLTextAreaElement>;
+}) {
+  return (
+    <div className="px-2 py-1 rounded">
+      <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
+        <textarea
+          ref={inputRef}
+          rows={1}
+          className="block w-full p-0 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
+          defaultValue={defaultValue ?? ""}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          onCompositionStart={onCompositionStart}
+          onCompositionEnd={onCompositionEnd}
+          placeholder={placeholder}
+        />
+      </div>
     </div>
   );
 }
@@ -83,13 +85,16 @@ function MessageNode({
   selectedMessageId: string | null;
   onMessageClick: (id: string) => void;
 }) {
+  const handleClick = useCallback(() => {
+    onMessageClick(node.message.id);
+  }, [onMessageClick, node.message.id]);
+
   return (
     <div>
-      <MessageBlock
-        mode={{ kind: "view" }}
+      <MessageView
         text={node.message.text}
         selected={selectedMessageId === node.message.id}
-        onClick={() => onMessageClick(node.message.id)}
+        onClick={handleClick}
       />
       {node.children.length > 0 && (
         <div
@@ -128,11 +133,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
   const handleMessageClick = useCallback((id: string) => {
-    setSelectedMessageId((prev) => {
-      if (prev === null) return id;
-      if (prev !== id) return null;
-      return prev;
-    });
+    setSelectedMessageId(id);
   }, []);
 
   const tree = buildTree(messages);
@@ -268,8 +269,6 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           <div className="px-3">
             <IndentGuides level={level}>
               <MessageBlock
-                mode={{ kind: "edit-new" }}
-                text=""
                 inputRef={inputRef}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
