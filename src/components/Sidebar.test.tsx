@@ -99,12 +99,7 @@ test("calls onDeleteFile when delete button is clicked", async () => {
       onDeleteFile={onDeleteFile}
     />,
   );
-  const deleteButtons = screen
-    .getByText("Thread A")
-    .element()
-    .parentElement?.querySelectorAll("button");
-  const deleteBtn = deleteButtons?.[0];
-  if (deleteBtn) deleteBtn.click();
+  await screen.getByRole("button", { name: "Delete Thread A" }).click();
   expect(onDeleteFile).toHaveBeenCalledWith("1", expect.any(Object));
 });
 
