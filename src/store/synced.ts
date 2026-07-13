@@ -126,6 +126,10 @@ export class SyncedStore implements Store {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  hasPending(): boolean {
+    return this.queue.length > 0 || this.processing;
+  }
+
   async flushSyncQueue(): Promise<void> {
     while (this.queue.length > 0 || this.processing) {
       await this.delay(10);

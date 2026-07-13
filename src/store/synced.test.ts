@@ -320,12 +320,30 @@ describe("SyncedStore", () => {
       });
       await store.init();
 
-      await store.putThread(makeData({ id: "1" }));
+      const promise = store.putThread(makeData({ id: "1" }));
+
+      await promise;
+      expect(store.hasPending()).toBe(true);
+
       await store.flushSyncQueue();
 
+      expect(store.hasPending()).toBe(false);
       expect(statuses).toContain("pending");
       expect(statuses).toContain("syncing");
       expect(statuses).toContain("idle");
+    });
+
+    it("reports hasPending correctly", async () => {
+      const store = new SyncedStore(primary, secondary);
+      await store.init();
+
+      expect(store.hasPending()).toBe(false);
+
+      await store.putThread(makeData({ id: "1" }));
+      expect(store.hasPending()).toBe(true);
+
+      await store.flushSyncQueue();
+      expect(store.hasPending()).toBe(false);
     });
   });
 });

@@ -39,6 +39,10 @@ export class MockStore implements Store {
     return saved;
   }
 
+  hasPending(): boolean {
+    return false;
+  }
+
   async deleteThread(id: string): Promise<void> {
     this.data.delete(id);
   }

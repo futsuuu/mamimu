@@ -66,6 +66,10 @@ export class IndexedDBStore implements Store {
     return data;
   }
 
+  hasPending(): boolean {
+    return false;
+  }
+
   async deleteThread(id: string): Promise<void> {
     const db = this.db!;
     await new Promise<void>((resolve, reject) => {
