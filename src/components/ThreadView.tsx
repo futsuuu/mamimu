@@ -38,7 +38,11 @@ function subscribeToMessage(messageId: string, listener: () => void) {
   }
   messageListeners.get(messageId)!.add(listener);
   return () => {
-    messageListeners.get(messageId)?.delete(listener);
+    const listeners = messageListeners.get(messageId);
+    listeners?.delete(listener);
+    if (listeners && listeners.size === 0) {
+      messageListeners.delete(messageId);
+    }
   };
 }
 
