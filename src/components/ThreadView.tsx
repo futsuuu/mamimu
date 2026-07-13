@@ -82,6 +82,7 @@ function MessageBlock({
         onClick={onClick}
         tabIndex={0}
         role="button"
+        aria-pressed={selected}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
