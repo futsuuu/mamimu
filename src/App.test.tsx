@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 
 import App from "./App";
@@ -40,6 +40,10 @@ vi.mock("./store/synced", () => ({
 vi.mock("./google-api/oauth", () => ({
   useGoogleAuth: mockUseGoogleAuth,
 }));
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 test("shows auth screen when not signed in", async () => {
   mockUseGoogleAuth.mockReturnValue({
