@@ -270,7 +270,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
 
   useEffect(() => {
     return () => selectMessage(null);
-  }, []);
+  }, [currentFile.id]);
 
   return (
     <>
