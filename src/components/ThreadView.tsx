@@ -1,4 +1,12 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import {
+  useRef,
+  useEffect,
+  useCallback,
+  useState,
+  useMemo,
+  memo,
+  useSyncExternalStore,
+} from "react";
 
 import { buildTree } from "../tree";
 import type { Message, TreeNode } from "../types";
@@ -21,24 +29,58 @@ function IndentGuides({ level, children }: { level: number; children: React.Reac
   return content;
 }
 
-function MessageView({
+let selectedMessageId: string | null = null;
+const messageListeners = new Map<string, Set<() => void>>();
+
+function subscribeToMessage(messageId: string, listener: () => void) {
+  if (!messageListeners.has(messageId)) {
+    messageListeners.set(messageId, new Set());
+  }
+  messageListeners.get(messageId)!.add(listener);
+  return () => {
+    messageListeners.get(messageId)?.delete(listener);
+  };
+}
+
+function getIsSelected(messageId: string) {
+  return selectedMessageId === messageId;
+}
+
+function selectMessage(id: string | null) {
+  const prevId = selectedMessageId;
+  if (prevId === id) return;
+  selectedMessageId = id;
+  if (prevId !== null) {
+    messageListeners.get(prevId)?.forEach((fn) => fn());
+  }
+  if (id !== null) {
+    messageListeners.get(id)?.forEach((fn) => fn());
+  }
+}
+
+const MessageView = memo(function MessageView({
   text,
-  selected,
+  messageId,
   onClick,
 }: {
   text: string;
-  selected?: boolean;
+  messageId: string;
   onClick?: () => void;
 }) {
+  const isSelected = useSyncExternalStore(
+    useCallback((cb: () => void) => subscribeToMessage(messageId, cb), [messageId]),
+    useCallback(() => getIsSelected(messageId), [messageId]),
+  );
+
   return (
     <div
-      className={`px-2 py-1 rounded hover:bg-neutral-50 cursor-pointer${selected ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""}`}
+      className={`px-2 py-1 rounded hover:bg-neutral-50 cursor-pointer${isSelected ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""}`}
       onClick={onClick}
     >
       <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
     </div>
   );
-}
+});
 
 function MessageBlock({
   inputRef,
@@ -76,13 +118,11 @@ function MessageBlock({
   );
 }
 
-function MessageNode({
+const MessageNode = memo(function MessageNode({
   node,
-  selectedMessageId,
   onMessageClick,
 }: {
   node: TreeNode;
-  selectedMessageId: string | null;
   onMessageClick: (id: string) => void;
 }) {
   const handleClick = useCallback(() => {
@@ -91,29 +131,20 @@ function MessageNode({
 
   return (
     <div>
-      <MessageView
-        text={node.message.text}
-        selected={selectedMessageId === node.message.id}
-        onClick={handleClick}
-      />
+      <MessageView text={node.message.text} messageId={node.message.id} onClick={handleClick} />
       {node.children.length > 0 && (
         <div
           className="border-0 border-l border-solid border-gray-200 ml-2"
           style={{ paddingLeft: "1.5rem" }}
         >
           {node.children.map((child) => (
-            <MessageNode
-              key={child.message.id}
-              node={child}
-              selectedMessageId={selectedMessageId}
-              onMessageClick={onMessageClick}
-            />
+            <MessageNode key={child.message.id} node={child} onMessageClick={onMessageClick} />
           ))}
         </div>
       )}
     </div>
   );
-}
+});
 
 interface Props {
   currentFile: { id: string; name: string };
@@ -130,13 +161,11 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const [level, setLevel] = useState(() => messages[messages.length - 1]?.level ?? 0);
   const [prevFileId, setPrevFileId] = useState(currentFile.id);
   const [initialized, setInitialized] = useState(false);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-
   const handleMessageClick = useCallback((id: string) => {
-    setSelectedMessageId(id);
+    selectMessage(id);
   }, []);
 
-  const tree = buildTree(messages);
+  const tree = useMemo(() => buildTree(messages), [messages]);
 
   if (currentFile.id !== prevFileId) {
     setPrevFileId(currentFile.id);
@@ -239,6 +268,10 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
     autoResize();
   }, []);
 
+  useEffect(() => {
+    return () => selectMessage(null);
+  }, []);
+
   return (
     <>
       <div className="flex items-center gap-2 px-4 pb-3 border-b border-gray-200 mb-3 md:hidden">
@@ -258,11 +291,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           <div className="flex-none min-w-0">
             {tree.map((node) => (
               <div key={node.message.id} className="px-3 min-w-0">
-                <MessageNode
-                  node={node}
-                  selectedMessageId={selectedMessageId}
-                  onMessageClick={handleMessageClick}
-                />
+                <MessageNode node={node} onMessageClick={handleMessageClick} />
               </div>
             ))}
           </div>
@@ -287,7 +316,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           <div
             className="flex-1 cursor-text min-h-[120px]"
             onClick={() => {
-              setSelectedMessageId(null);
+              selectMessage(null);
               focusInput();
             }}
           />
