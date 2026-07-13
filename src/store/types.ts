@@ -26,4 +26,5 @@ export interface Store {
   getThread(id: string): Promise<ThreadData | null>;
   putThread(data: ThreadData): Promise<ThreadData>;
   deleteThread(id: string): Promise<void>;
+  hasPending(): boolean;
 }

@@ -68,6 +68,10 @@ export class DriveStore implements Store {
     }
   }
 
+  hasPending(): boolean {
+    return false;
+  }
+
   async deleteThread(id: string): Promise<void> {
     try {
       await deleteFile(this.getToken(), id);
