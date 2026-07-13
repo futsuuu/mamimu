@@ -221,6 +221,19 @@ function App() {
     }
   }, []);
 
+  const handleEdit = useCallback(
+    (id: string, text: string) => {
+      if (!storeRef.current || !currentIdRef.current) return;
+
+      const updated = messagesRef.current.map((msg) => (msg.id === id ? { ...msg, text } : msg));
+      messagesRef.current = updated;
+      setMessages(updated);
+
+      throttledSave();
+    },
+    [throttledSave],
+  );
+
   const handleSend = useCallback(
     (text: string, level: number) => {
       if (!text || !storeRef.current || !currentIdRef.current) return;
@@ -289,6 +302,7 @@ function App() {
                 currentFile={{ id: currentMeta.id, name: currentMeta.name }}
                 messages={messages}
                 onSend={handleSend}
+                onEdit={handleEdit}
                 onBack={() => setSidebarOpen(true)}
               />
             ) : (

@@ -1,9 +1,29 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, createContext, useContext } from "react";
 
 import { buildTree } from "../tree";
 import type { Message, TreeNode, MessageBlockMode } from "../types";
 
 const MAX_GUIDE_DEPTH = 20;
+
+interface MessageInteractionContextValue {
+  selectedMessageId: string | null;
+  onMessageClick: (id: string) => void;
+  editingMessageId: string | null;
+  editInputRef: React.RefObject<HTMLTextAreaElement | null>;
+  onEditChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  onEditKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onEditBlur: React.FocusEventHandler<HTMLTextAreaElement>;
+  onEditCompositionStart: React.CompositionEventHandler<HTMLTextAreaElement>;
+  onEditCompositionEnd: React.CompositionEventHandler<HTMLTextAreaElement>;
+}
+
+const MessageInteractionContext = createContext<MessageInteractionContextValue | null>(null);
+
+function useMessageInteraction() {
+  const ctx = useContext(MessageInteractionContext);
+  if (!ctx) throw new Error("useMessageInteraction must be used within a provider");
+  return ctx;
+}
 
 function IndentGuides({ level, children }: { level: number; children: React.ReactNode }) {
   let content = children;
@@ -28,6 +48,7 @@ function MessageBlock({
   placeholder,
   onChange,
   onKeyDown,
+  onBlur,
   onCompositionStart,
   onCompositionEnd,
   selected,
@@ -39,6 +60,7 @@ function MessageBlock({
   placeholder?: string;
   onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onBlur?: React.FocusEventHandler<HTMLTextAreaElement>;
   onCompositionStart?: React.CompositionEventHandler<HTMLTextAreaElement>;
   onCompositionEnd?: React.CompositionEventHandler<HTMLTextAreaElement>;
   selected?: boolean;
@@ -46,15 +68,12 @@ function MessageBlock({
 }) {
   return (
     <div
-      className={`px-2 py-1${selected && mode.kind === "view" ? " bg-neutral-100 outline-1 outline-solid outline-gray-200 rounded" : ""}`}
+      data-message-block=""
+      className={`px-2 py-1${mode.kind === "view" ? " hover:bg-neutral-50 rounded" : ""}${selected && mode.kind === "view" ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""}`}
+      onClick={mode.kind === "view" ? onClick : undefined}
     >
       {mode.kind === "view" ? (
-        <div
-          className="text-base leading-relaxed whitespace-pre-wrap break-anywhere"
-          onClick={onClick}
-        >
-          {text}
-        </div>
+        <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
       ) : (
         <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
           <textarea
@@ -64,6 +83,7 @@ function MessageBlock({
             defaultValue={text}
             onChange={onChange}
             onKeyDown={onKeyDown}
+            onBlur={onBlur}
             onCompositionStart={onCompositionStart}
             onCompositionEnd={onCompositionEnd}
             placeholder={placeholder}
@@ -74,35 +94,37 @@ function MessageBlock({
   );
 }
 
-function MessageNode({
-  node,
-  selectedMessageId,
-  onMessageClick,
-}: {
-  node: TreeNode;
-  selectedMessageId: string | null;
-  onMessageClick: (id: string) => void;
-}) {
+function MessageNode({ node }: { node: TreeNode }) {
+  const ctx = useMessageInteraction();
+  const isEditing = ctx.editingMessageId === node.message.id;
   return (
     <div>
-      <MessageBlock
-        mode={{ kind: "view" }}
-        text={node.message.text}
-        selected={selectedMessageId === node.message.id}
-        onClick={() => onMessageClick(node.message.id)}
-      />
+      {isEditing ? (
+        <MessageBlock
+          mode={{ kind: "edit-existing", message: node.message }}
+          text={node.message.text}
+          inputRef={ctx.editInputRef}
+          onChange={ctx.onEditChange}
+          onKeyDown={ctx.onEditKeyDown}
+          onBlur={ctx.onEditBlur}
+          onCompositionStart={ctx.onEditCompositionStart}
+          onCompositionEnd={ctx.onEditCompositionEnd}
+        />
+      ) : (
+        <MessageBlock
+          mode={{ kind: "view" }}
+          text={node.message.text}
+          selected={ctx.selectedMessageId === node.message.id}
+          onClick={() => ctx.onMessageClick(node.message.id)}
+        />
+      )}
       {node.children.length > 0 && (
         <div
           className="border-0 border-l border-solid border-gray-200 ml-2"
           style={{ paddingLeft: "1.5rem" }}
         >
           {node.children.map((child) => (
-            <MessageNode
-              key={child.message.id}
-              node={child}
-              selectedMessageId={selectedMessageId}
-              onMessageClick={onMessageClick}
-            />
+            <MessageNode key={child.message.id} node={child} />
           ))}
         </div>
       )}
@@ -114,10 +136,11 @@ interface Props {
   currentFile: { id: string; name: string };
   messages: Message[];
   onSend: (text: string, level: number) => void;
+  onEdit: (id: string, text: string) => void;
   onBack: () => void;
 }
 
-export default function ThreadView({ currentFile, messages, onSend, onBack }: Props) {
+export default function ThreadView({ currentFile, messages, onSend, onEdit, onBack }: Props) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollableRef = useRef<HTMLDivElement | null>(null);
   const composingRef = useRef(false);
@@ -126,14 +149,65 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const [prevFileId, setPrevFileId] = useState(currentFile.id);
   const [initialized, setInitialized] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const editInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const editValueRef = useRef("");
+  const editComposingRef = useRef(false);
 
-  const handleMessageClick = useCallback((id: string) => {
-    setSelectedMessageId((prev) => {
-      if (prev === null) return id;
-      if (prev !== id) return null;
-      return prev;
-    });
-  }, []);
+  const cancelEditing = () => {
+    setEditingMessageId(null);
+    setSelectedMessageId(null);
+  };
+
+  const saveEditing = () => {
+    if (editingMessageId === null) return;
+    const text = editValueRef.current.trim();
+    if (!text) return;
+    onEdit(editingMessageId, text);
+    setEditingMessageId(null);
+  };
+
+  const handleMessageClick = useCallback(
+    (id: string) => {
+      const prev = selectedMessageId;
+      if (prev === null) {
+        setSelectedMessageId(id);
+      } else if (prev !== id) {
+        setSelectedMessageId(id);
+        setEditingMessageId(null);
+      } else {
+        setEditingMessageId(id);
+      }
+    },
+    [selectedMessageId],
+  );
+
+  const editAutoResize = () => {
+    const ta = editInputRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight}px`;
+  };
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    editValueRef.current = e.target.value;
+    if (editComposingRef.current) return;
+    editAutoResize();
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (editComposingRef.current) return;
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      saveEditing();
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cancelEditing();
+      return;
+    }
+  };
 
   const tree = buildTree(messages);
 
@@ -238,6 +312,33 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
     autoResize();
   }, []);
 
+  useEffect(() => {
+    if (editingMessageId === null) return;
+    const ta = editInputRef.current;
+    if (!ta) return;
+    editAutoResize();
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }, [editingMessageId]);
+
+  const contextValue: MessageInteractionContextValue = {
+    selectedMessageId,
+    onMessageClick: handleMessageClick,
+    editingMessageId,
+    editInputRef,
+    onEditChange: handleEditChange,
+    onEditKeyDown: handleEditKeyDown,
+    onEditBlur: cancelEditing,
+    onEditCompositionStart: () => {
+      editComposingRef.current = true;
+    },
+    onEditCompositionEnd: () => {
+      editComposingRef.current = false;
+      editValueRef.current = editInputRef.current?.value ?? "";
+      editAutoResize();
+    },
+  };
+
   return (
     <>
       <div className="flex items-center gap-2 px-4 pb-3 border-b border-gray-200 mb-3 md:hidden">
@@ -252,18 +353,24 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col pr-4"
         ref={scrollableRef}
+        onClick={(e) => {
+          if (
+            selectedMessageId !== null &&
+            !(e.target as Element).closest("[data-message-block]")
+          ) {
+            setSelectedMessageId(null);
+          }
+        }}
       >
         <div className="flex flex-col flex-1 min-h-0 mx-auto w-full max-w-6xl px-4 pt-4">
           <div className="flex-none min-w-0">
-            {tree.map((node) => (
-              <div key={node.message.id} className="px-3 min-w-0">
-                <MessageNode
-                  node={node}
-                  selectedMessageId={selectedMessageId}
-                  onMessageClick={handleMessageClick}
-                />
-              </div>
-            ))}
+            <MessageInteractionContext.Provider value={contextValue}>
+              {tree.map((node) => (
+                <div key={node.message.id} className="px-3 min-w-0">
+                  <MessageNode node={node} />
+                </div>
+              ))}
+            </MessageInteractionContext.Provider>
           </div>
           <div className="px-3">
             <IndentGuides level={level}>
@@ -289,6 +396,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
             className="flex-1 cursor-text min-h-[120px]"
             onClick={() => {
               setSelectedMessageId(null);
+              setEditingMessageId(null);
               focusInput();
             }}
           />
