@@ -51,8 +51,9 @@ test("does not highlight non-current thread", async () => {
       onDeleteFile={vi.fn()}
     />,
   );
-  const item = screen.getByText("Thread B").element();
-  expect(item.className.includes("bg-white")).toBe(false);
+  const li = screen.getByText("Thread B").element().closest("li");
+  expect(li).not.toBeNull();
+  expect(li!.className.includes("bg-white")).toBe(false);
 });
 
 test("calls onSelectFile when a thread is clicked", async () => {
