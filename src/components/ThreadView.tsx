@@ -1,4 +1,12 @@
-import { useRef, useEffect, useCallback, useState, createContext, useContext } from "react";
+import {
+  useRef,
+  useEffect,
+  useCallback,
+  useState,
+  useMemo,
+  createContext,
+  useContext,
+} from "react";
 
 import { buildTree } from "../tree";
 import type { Message, TreeNode, MessageBlockMode } from "../types";
@@ -66,30 +74,41 @@ function MessageBlock({
   selected?: boolean;
   onClick?: () => void;
 }) {
-  return (
-    <div
-      data-message-block=""
-      className={`px-2 py-1${mode.kind === "view" ? " hover:bg-neutral-50 rounded" : ""}${selected && mode.kind === "view" ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""}`}
-      onClick={mode.kind === "view" ? onClick : undefined}
-    >
-      {mode.kind === "view" ? (
+  if (mode.kind === "view") {
+    return (
+      <div
+        data-message-block=""
+        className={`px-2 py-1${selected ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""} hover:bg-neutral-50 rounded`}
+        onClick={onClick}
+        tabIndex={0}
+        role="button"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick?.();
+          }
+        }}
+      >
         <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
-      ) : (
-        <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
-          <textarea
-            ref={inputRef}
-            rows={1}
-            className="block w-full p-0 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
-            defaultValue={text}
-            onChange={onChange}
-            onKeyDown={onKeyDown}
-            onBlur={onBlur}
-            onCompositionStart={onCompositionStart}
-            onCompositionEnd={onCompositionEnd}
-            placeholder={placeholder}
-          />
-        </div>
-      )}
+      </div>
+    );
+  }
+  return (
+    <div data-message-block="" className="px-2 py-1">
+      <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
+        <textarea
+          ref={inputRef}
+          rows={1}
+          className="block w-full p-0 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
+          defaultValue={text}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          onBlur={onBlur}
+          onCompositionStart={onCompositionStart}
+          onCompositionEnd={onCompositionEnd}
+          placeholder={placeholder}
+        />
+      </div>
     </div>
   );
 }
@@ -153,6 +172,7 @@ export default function ThreadView({ currentFile, messages, onSend, onEdit, onBa
   const editInputRef = useRef<HTMLTextAreaElement | null>(null);
   const editValueRef = useRef("");
   const editComposingRef = useRef(false);
+  const editHandledRef = useRef(false);
 
   const cancelEditing = () => {
     setEditingMessageId(null);
@@ -165,6 +185,14 @@ export default function ThreadView({ currentFile, messages, onSend, onEdit, onBa
     if (!text) return;
     onEdit(editingMessageId, text);
     setEditingMessageId(null);
+  };
+
+  const handleEditBlur = () => {
+    if (editHandledRef.current) {
+      editHandledRef.current = false;
+      return;
+    }
+    saveEditing();
   };
 
   const handleMessageClick = useCallback(
@@ -199,11 +227,13 @@ export default function ThreadView({ currentFile, messages, onSend, onEdit, onBa
     if (editComposingRef.current) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      editHandledRef.current = true;
       saveEditing();
       return;
     }
     if (e.key === "Escape") {
       e.preventDefault();
+      editHandledRef.current = true;
       cancelEditing();
       return;
     }
@@ -316,28 +346,39 @@ export default function ThreadView({ currentFile, messages, onSend, onEdit, onBa
     if (editingMessageId === null) return;
     const ta = editInputRef.current;
     if (!ta) return;
+    editValueRef.current = ta.value;
     editAutoResize();
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
   }, [editingMessageId]);
 
-  const contextValue: MessageInteractionContextValue = {
-    selectedMessageId,
-    onMessageClick: handleMessageClick,
-    editingMessageId,
-    editInputRef,
-    onEditChange: handleEditChange,
-    onEditKeyDown: handleEditKeyDown,
-    onEditBlur: cancelEditing,
-    onEditCompositionStart: () => {
-      editComposingRef.current = true;
-    },
-    onEditCompositionEnd: () => {
-      editComposingRef.current = false;
-      editValueRef.current = editInputRef.current?.value ?? "";
-      editAutoResize();
-    },
-  };
+  const contextValue = useMemo<MessageInteractionContextValue>(
+    () => ({
+      selectedMessageId,
+      onMessageClick: handleMessageClick,
+      editingMessageId,
+      editInputRef,
+      onEditChange: handleEditChange,
+      onEditKeyDown: handleEditKeyDown,
+      onEditBlur: handleEditBlur,
+      onEditCompositionStart: () => {
+        editComposingRef.current = true;
+      },
+      onEditCompositionEnd: () => {
+        editComposingRef.current = false;
+        editValueRef.current = editInputRef.current?.value ?? "";
+        editAutoResize();
+      },
+    }),
+    [
+      selectedMessageId,
+      editingMessageId,
+      handleMessageClick,
+      handleEditChange,
+      handleEditKeyDown,
+      handleEditBlur,
+    ],
+  );
 
   return (
     <>
