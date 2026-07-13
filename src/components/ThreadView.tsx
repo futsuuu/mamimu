@@ -11,7 +11,7 @@ function IndentGuides({ level, children }: { level: number; children: React.Reac
     const show = i < level;
     content = (
       <div
-        className={show ? "border-0 border-l border-solid border-gray-200" : ""}
+        className={show ? "border-0 border-l border-solid border-gray-200 ml-2" : ""}
         style={{ paddingLeft: show ? "1.5rem" : "0" }}
       >
         {content}
@@ -45,10 +45,12 @@ function MessageBlock({
   onClick?: () => void;
 }) {
   return (
-    <div className="py-1">
+    <div
+      className={`px-2 py-1${selected && mode.kind === "view" ? " bg-neutral-100 outline-1 outline-solid outline-gray-200 rounded" : ""}`}
+    >
       {mode.kind === "view" ? (
         <div
-          className={`text-base leading-relaxed whitespace-pre-wrap break-anywhere${selected ? " bg-neutral-100" : ""}`}
+          className="text-base leading-relaxed whitespace-pre-wrap break-anywhere"
           onClick={onClick}
         >
           {text}
@@ -91,7 +93,7 @@ function MessageNode({
       />
       {node.children.length > 0 && (
         <div
-          className="border-0 border-l border-solid border-gray-200"
+          className="border-0 border-l border-solid border-gray-200 ml-2"
           style={{ paddingLeft: "1.5rem" }}
         >
           {node.children.map((child) => (
