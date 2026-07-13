@@ -25,7 +25,7 @@ export default defineConfig({
             headless: true,
             instances: [{ browser: "chromium" }],
           },
-          setupFiles: ["./src/test-setup.ts"],
+          setupFiles: ["./vitest.setup.ts"],
         },
       },
     ],
