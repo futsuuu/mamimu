@@ -19,6 +19,7 @@ jobs:
         with:
           node-version: 26
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
       - run: pnpm run format:check
       - run: pnpm run lint
       - run: pnpm run test
