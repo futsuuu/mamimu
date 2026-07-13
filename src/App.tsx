@@ -267,23 +267,35 @@ function App() {
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      dirtyRef.current = false;
+      // Capture dirtyRef before the async putThread call.
+      // putThread is async and suspends at the first await (IndexedDB write),
+      // so SyncedStore.enqueue() hasn't run yet when hasPending() is checked.
+      // Capturing isDirty here ensures we still warn even if enqueue hasn't fired.
+      const isDirty = dirtyRef.current;
 
-      const msgs = messagesRef.current;
-      if (storeRef.current && currentIdRef.current && msgs.length > 0) {
-        void storeRef.current.putThread({
-          id: currentIdRef.current,
-          name: currentNameRef.current,
-          driveFileId: currentDriveFileIdRef.current,
-          messages: msgs,
-        });
+      if (isDirty) {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        dirtyRef.current = false;
+
+        const msgs = messagesRef.current;
+        if (storeRef.current && currentIdRef.current && msgs.length > 0) {
+          void storeRef.current.putThread({
+            id: currentIdRef.current,
+            name: currentNameRef.current,
+            driveFileId: currentDriveFileIdRef.current,
+            messages: msgs,
+          });
+        }
       }
 
-      if (storeRef.current?.hasPending()) {
+      // isDirty: captured before save — covers the window between the async
+      //          putThread call and SyncedStore.enqueue()
+      // savingRef: a throttled save fire() is in progress
+      // hasPending: Drive sync is queued or in progress
+      if (isDirty || savingRef.current || storeRef.current?.hasPending()) {
         e.preventDefault();
       }
     };
