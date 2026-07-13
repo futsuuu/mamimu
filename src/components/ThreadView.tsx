@@ -175,26 +175,27 @@ export default function ThreadView({ currentFile, messages, onSend, onEdit, onBa
   const editComposingRef = useRef(false);
   const editHandledRef = useRef(false);
 
-  const cancelEditing = () => {
+  const cancelEditing = useCallback(() => {
     setEditingMessageId(null);
     setSelectedMessageId(null);
-  };
+  }, []);
 
-  const saveEditing = () => {
-    if (editingMessageId === null) return;
+  const saveEditing = useCallback(() => {
+    if (editingMessageId === null) return false;
     const text = editValueRef.current.trim();
-    if (!text) return;
+    if (!text) return false;
     onEdit(editingMessageId, text);
     setEditingMessageId(null);
-  };
+    return true;
+  }, [editingMessageId, onEdit]);
 
-  const handleEditBlur = () => {
+  const handleEditBlur = useCallback(() => {
     if (editHandledRef.current) {
       editHandledRef.current = false;
       return;
     }
     saveEditing();
-  };
+  }, [saveEditing]);
 
   const handleMessageClick = useCallback(
     (id: string) => {
@@ -211,34 +212,41 @@ export default function ThreadView({ currentFile, messages, onSend, onEdit, onBa
     [selectedMessageId],
   );
 
-  const editAutoResize = () => {
+  const editAutoResize = useCallback(() => {
     const ta = editInputRef.current;
     if (!ta) return;
     ta.style.height = "auto";
     ta.style.height = `${ta.scrollHeight}px`;
-  };
+  }, []);
 
-  const handleEditChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    editValueRef.current = e.target.value;
-    if (editComposingRef.current) return;
-    editAutoResize();
-  };
+  const handleEditChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      editValueRef.current = e.target.value;
+      if (editComposingRef.current) return;
+      editAutoResize();
+    },
+    [editAutoResize],
+  );
 
-  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (editComposingRef.current) return;
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      editHandledRef.current = true;
-      saveEditing();
-      return;
-    }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      editHandledRef.current = true;
-      cancelEditing();
-      return;
-    }
-  };
+  const handleEditKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (editComposingRef.current) return;
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (saveEditing()) {
+          editHandledRef.current = true;
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancelEditing();
+        editHandledRef.current = true;
+        return;
+      }
+    },
+    [saveEditing, cancelEditing],
+  );
 
   const tree = buildTree(messages);
 
