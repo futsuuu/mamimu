@@ -42,6 +42,7 @@ export default function Sidebar({
             <span className="truncate flex-1 text-sm">{thread.name}</span>
             <button
               className="opacity-0 bg-transparent border-none cursor-pointer text-gray-400 text-lg px-1 leading-none group-hover:opacity-100 hover:text-red-500"
+              aria-label={`Delete ${thread.name}`}
               onClick={(e) => onDeleteFile(thread.id, e)}
             >
               ×
