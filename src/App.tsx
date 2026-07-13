@@ -225,7 +225,9 @@ function App() {
     (id: string, text: string) => {
       if (!storeRef.current || !currentIdRef.current) return;
 
-      const updated = messagesRef.current.map((msg) => (msg.id === id ? { ...msg, text } : msg));
+      const updated = messagesRef.current.map((msg) =>
+        msg.id === id ? { ...msg, text, timestamp: Date.now() } : msg,
+      );
       messagesRef.current = updated;
       setMessages(updated);
 
