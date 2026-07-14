@@ -1,15 +1,8 @@
-import {
-  useRef,
-  useEffect,
-  useCallback,
-  useState,
-  useMemo,
-  memo,
-  useSyncExternalStore,
-} from "react";
+import { useRef, useEffect, useCallback, useState, useMemo, memo } from "react";
 
 import { buildTree } from "../tree";
 import type { Message, TreeNode } from "../types";
+import { selectMessage, MemoizedMessageView } from "./MessageView";
 
 const MAX_GUIDE_DEPTH = 20;
 
@@ -28,63 +21,6 @@ function IndentGuides({ level, children }: { level: number; children: React.Reac
   }
   return content;
 }
-
-let selectedMessageId: string | null = null;
-const messageListeners = new Map<string, Set<() => void>>();
-
-function subscribeToMessage(messageId: string, listener: () => void) {
-  if (!messageListeners.has(messageId)) {
-    messageListeners.set(messageId, new Set());
-  }
-  messageListeners.get(messageId)!.add(listener);
-  return () => {
-    const listeners = messageListeners.get(messageId);
-    listeners?.delete(listener);
-    if (listeners && listeners.size === 0) {
-      messageListeners.delete(messageId);
-    }
-  };
-}
-
-function getIsSelected(messageId: string) {
-  return selectedMessageId === messageId;
-}
-
-function selectMessage(id: string | null) {
-  const prevId = selectedMessageId;
-  if (prevId === id) return;
-  selectedMessageId = id;
-  if (prevId !== null) {
-    messageListeners.get(prevId)?.forEach((fn) => fn());
-  }
-  if (id !== null) {
-    messageListeners.get(id)?.forEach((fn) => fn());
-  }
-}
-
-const MessageView = memo(function MessageView({
-  text,
-  messageId,
-  onClick,
-}: {
-  text: string;
-  messageId: string;
-  onClick?: () => void;
-}) {
-  const isSelected = useSyncExternalStore(
-    useCallback((cb: () => void) => subscribeToMessage(messageId, cb), [messageId]),
-    useCallback(() => getIsSelected(messageId), [messageId]),
-  );
-
-  return (
-    <div
-      className={`px-2 py-1 rounded hover:bg-neutral-50 cursor-pointer${isSelected ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""}`}
-      onClick={onClick}
-    >
-      <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
-    </div>
-  );
-});
 
 function MessageBlock({
   inputRef,
@@ -135,7 +71,11 @@ const MessageNode = memo(function MessageNode({
 
   return (
     <div>
-      <MessageView text={node.message.text} messageId={node.message.id} onClick={handleClick} />
+      <MemoizedMessageView
+        text={node.message.text}
+        messageId={node.message.id}
+        onClick={handleClick}
+      />
       {node.children.length > 0 && (
         <div
           className="border-0 border-l border-solid border-gray-200 ml-2"

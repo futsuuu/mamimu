@@ -1,8 +1,20 @@
+vi.mock("./MessageView", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("./MessageView")>();
+  const { memo } = await import("react");
+  const spy = vi.fn(mod.MessageView);
+  return {
+    ...mod,
+    MessageView: spy,
+    MemoizedMessageView: memo(spy),
+  };
+});
+
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { userEvent } from "vitest/browser";
 
 import type { Message } from "../types";
+import { MessageView } from "./MessageView";
 import ThreadView from "./ThreadView";
 
 const file = { id: "1", name: "Test Thread" };
@@ -182,4 +194,112 @@ test("Tab indent is capped by last message level + 1", async () => {
   await input.fill("hello");
   await userEvent.keyboard("{Enter}");
   expect(onSend).toHaveBeenCalledWith("hello", 2);
+});
+
+test("selecting a message does not re-render unrelated MessageView components", async () => {
+  const messages: Message[] = [
+    { id: "nr-1", text: "Alpha", timestamp: 1, level: 0 },
+    { id: "nr-2", text: "Beta", timestamp: 2, level: 0 },
+    { id: "nr-3", text: "Gamma", timestamp: 3, level: 0 },
+  ];
+  const screen = await render(
+    <ThreadView currentFile={file} messages={messages} onSend={vi.fn()} onBack={vi.fn()} />,
+  );
+
+  vi.mocked(MessageView).mockClear();
+  await screen.getByText("Alpha").click();
+  await vi.waitFor(() => {
+    const el = screen.getByText("Alpha").element().closest("[class*='cursor-pointer']");
+    expect(el?.className).toContain("bg-neutral-100");
+  });
+  expect(vi.mocked(MessageView)).toHaveBeenCalledTimes(1);
+
+  vi.mocked(MessageView).mockClear();
+  await screen.getByText("Beta").click();
+  await vi.waitFor(() => {
+    const el = screen.getByText("Beta").element().closest("[class*='cursor-pointer']");
+    expect(el?.className).toContain("bg-neutral-100");
+  });
+  expect(vi.mocked(MessageView)).toHaveBeenCalledTimes(2);
+});
+
+test("selecting a child does not re-render parent MessageView", async () => {
+  const messages: Message[] = [
+    { id: "pc-1", text: "Parent", timestamp: 1, level: 0 },
+    { id: "pc-2", text: "Child", timestamp: 2, level: 1 },
+  ];
+  const screen = await render(
+    <ThreadView currentFile={file} messages={messages} onSend={vi.fn()} onBack={vi.fn()} />,
+  );
+
+  vi.mocked(MessageView).mockClear();
+  await screen.getByText("Child").click();
+  await vi.waitFor(() => {
+    const el = screen.getByText("Child").element().closest("[class*='cursor-pointer']");
+    expect(el?.className).toContain("bg-neutral-100");
+  });
+  expect(vi.mocked(MessageView)).toHaveBeenCalledTimes(1);
+
+  vi.mocked(MessageView).mockClear();
+  await screen.getByText("Parent").click();
+  await vi.waitFor(() => {
+    const el = screen.getByText("Parent").element().closest("[class*='cursor-pointer']");
+    expect(el?.className).toContain("bg-neutral-100");
+  });
+  expect(vi.mocked(MessageView)).toHaveBeenCalledTimes(2);
+});
+
+test("selecting a sibling does not re-render other siblings under same parent", async () => {
+  const messages: Message[] = [
+    { id: "sib-1", text: "Parent", timestamp: 1, level: 0 },
+    { id: "sib-2", text: "Child A", timestamp: 2, level: 1 },
+    { id: "sib-3", text: "Child B", timestamp: 3, level: 1 },
+  ];
+  const screen = await render(
+    <ThreadView currentFile={file} messages={messages} onSend={vi.fn()} onBack={vi.fn()} />,
+  );
+
+  vi.mocked(MessageView).mockClear();
+  await screen.getByText("Child A").click();
+  await vi.waitFor(() => {
+    const el = screen.getByText("Child A").element().closest("[class*='cursor-pointer']");
+    expect(el?.className).toContain("bg-neutral-100");
+  });
+  expect(vi.mocked(MessageView)).toHaveBeenCalledTimes(1);
+
+  vi.mocked(MessageView).mockClear();
+  await screen.getByText("Child B").click();
+  await vi.waitFor(() => {
+    const el = screen.getByText("Child B").element().closest("[class*='cursor-pointer']");
+    expect(el?.className).toContain("bg-neutral-100");
+  });
+  expect(vi.mocked(MessageView)).toHaveBeenCalledTimes(2);
+});
+
+test("selecting a deeply nested message does not re-render unrelated branches", async () => {
+  const messages: Message[] = [
+    { id: "db-1", text: "Root", timestamp: 1, level: 0 },
+    { id: "db-2", text: "Branch A", timestamp: 2, level: 1 },
+    { id: "db-3", text: "Deep A", timestamp: 3, level: 2 },
+    { id: "db-4", text: "Branch B", timestamp: 4, level: 1 },
+  ];
+  const screen = await render(
+    <ThreadView currentFile={file} messages={messages} onSend={vi.fn()} onBack={vi.fn()} />,
+  );
+
+  vi.mocked(MessageView).mockClear();
+  await screen.getByText("Deep A").click();
+  await vi.waitFor(() => {
+    const el = screen.getByText("Deep A").element().closest("[class*='cursor-pointer']");
+    expect(el?.className).toContain("bg-neutral-100");
+  });
+  expect(vi.mocked(MessageView)).toHaveBeenCalledTimes(1);
+
+  vi.mocked(MessageView).mockClear();
+  await screen.getByText("Branch B").click();
+  await vi.waitFor(() => {
+    const el = screen.getByText("Branch B").element().closest("[class*='cursor-pointer']");
+    expect(el?.className).toContain("bg-neutral-100");
+  });
+  expect(vi.mocked(MessageView)).toHaveBeenCalledTimes(2);
 });
