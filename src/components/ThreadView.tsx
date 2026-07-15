@@ -24,31 +24,17 @@ function IndentGuides({ level, children }: { level: number; children: React.Reac
   return content;
 }
 
-const MessageNode = memo(function MessageNode({
-  node,
-  onMessageClick,
-}: {
-  node: TreeNode;
-  onMessageClick: (id: string) => void;
-}) {
-  const handleClick = useCallback(() => {
-    onMessageClick(node.message.id);
-  }, [onMessageClick, node.message.id]);
-
+const MessageNode = memo(function MessageNode({ node }: { node: TreeNode }) {
   return (
     <div>
-      <MemoizedMessageView
-        text={node.message.text}
-        messageId={node.message.id}
-        onClick={handleClick}
-      />
+      <MemoizedMessageView text={node.message.text} messageId={node.message.id} />
       {node.children.length > 0 && (
         <div
           className="border-0 border-l border-solid border-gray-200 ml-2"
           style={{ paddingLeft: "1.5rem" }}
         >
           {node.children.map((child) => (
-            <MessageNode key={child.message.id} node={child} onMessageClick={onMessageClick} />
+            <MessageNode key={child.message.id} node={child} />
           ))}
         </div>
       )}
@@ -69,9 +55,6 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const [level, setLevel] = useState(() => messages[messages.length - 1]?.level ?? 0);
   const [prevFileId, setPrevFileId] = useState(currentFile.id);
   const [initialized, setInitialized] = useState(false);
-  const handleMessageClick = useCallback((id: string) => {
-    selectMessage(id);
-  }, []);
 
   const tree = useMemo(() => buildTree(messages), [messages]);
 
@@ -137,7 +120,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           <div className="flex-none min-w-0">
             {tree.map((node) => (
               <div key={node.message.id} className="px-3 min-w-0">
-                <MessageNode node={node} onMessageClick={handleMessageClick} />
+                <MessageNode node={node} />
               </div>
             ))}
           </div>

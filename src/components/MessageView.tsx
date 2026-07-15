@@ -33,24 +33,20 @@ export function selectMessage(id: string | null) {
   }
 }
 
-export function MessageView({
-  text,
-  messageId,
-  onClick,
-}: {
-  text: string;
-  messageId: string;
-  onClick?: () => void;
-}) {
+export function MessageView({ text, messageId }: { text: string; messageId: string }) {
   const isSelected = useSyncExternalStore(
     useCallback((cb: () => void) => subscribeToMessage(messageId, cb), [messageId]),
     useCallback(() => getIsSelected(messageId), [messageId]),
   );
 
+  const handleClick = useCallback(() => {
+    selectMessage(messageId);
+  }, [messageId]);
+
   return (
     <div
       className={`px-2 py-1 rounded hover:bg-neutral-50 cursor-pointer${isSelected ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""}`}
-      onClick={onClick}
+      onClick={handleClick}
     >
       <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>
     </div>
