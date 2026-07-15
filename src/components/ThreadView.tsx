@@ -2,6 +2,8 @@ import { useRef, useEffect, useCallback, useState, useMemo, memo } from "react";
 
 import { buildTree } from "../tree";
 import type { Message, TreeNode } from "../types";
+import MessageEditor from "./MessageEditor";
+import type { MessageEditorHandle } from "./MessageEditor";
 import { selectMessage, MemoizedMessageView } from "./MessageView";
 
 const MAX_GUIDE_DEPTH = 20;
@@ -20,42 +22,6 @@ function IndentGuides({ level, children }: { level: number; children: React.Reac
     );
   }
   return content;
-}
-
-function MessageBlock({
-  inputRef,
-  placeholder,
-  defaultValue,
-  onChange,
-  onKeyDown,
-  onCompositionStart,
-  onCompositionEnd,
-}: {
-  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
-  placeholder?: string;
-  defaultValue?: string;
-  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  onCompositionStart?: React.CompositionEventHandler<HTMLTextAreaElement>;
-  onCompositionEnd?: React.CompositionEventHandler<HTMLTextAreaElement>;
-}) {
-  return (
-    <div className="px-2 py-1 rounded">
-      <div className="cursor-text" onClick={() => inputRef?.current?.focus()}>
-        <textarea
-          ref={inputRef}
-          rows={1}
-          className="block w-full p-0 box-border border-none outline-none resize-none text-base leading-relaxed bg-transparent overflow-y-hidden"
-          defaultValue={defaultValue ?? ""}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          onCompositionStart={onCompositionStart}
-          onCompositionEnd={onCompositionEnd}
-          placeholder={placeholder}
-        />
-      </div>
-    </div>
-  );
 }
 
 const MessageNode = memo(function MessageNode({
@@ -98,10 +64,8 @@ interface Props {
 }
 
 export default function ThreadView({ currentFile, messages, onSend, onBack }: Props) {
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<MessageEditorHandle | null>(null);
   const scrollableRef = useRef<HTMLDivElement | null>(null);
-  const composingRef = useRef(false);
-  const inputValueRef = useRef("");
   const [level, setLevel] = useState(() => messages[messages.length - 1]?.level ?? 0);
   const [prevFileId, setPrevFileId] = useState(currentFile.id);
   const [initialized, setInitialized] = useState(false);
@@ -127,34 +91,6 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
     setLevel(messages[messages.length - 1].level);
   }
 
-  const autoResize = useCallback(() => {
-    const ta = inputRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${ta.scrollHeight}px`;
-  }, []);
-
-  const focusInput = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    inputValueRef.current = e.target.value;
-    if (composingRef.current) return;
-    autoResize();
-  };
-
-  const handleSend = () => {
-    const text = inputValueRef.current.trim();
-    if (!text) return;
-    onSend(text, level);
-    inputValueRef.current = "";
-    if (inputRef.current) {
-      inputRef.current.value = "";
-      autoResize();
-    }
-  };
-
   const indent = () => {
     const lastMsg = messages[messages.length - 1];
     const prevLevel = lastMsg?.level ?? 0;
@@ -165,52 +101,18 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
     setLevel((prev) => Math.max(prev - 1, 0));
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (composingRef.current) return;
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-      return;
-    }
-    const el = e.target as HTMLTextAreaElement;
-    if (e.key === "Tab") {
-      e.preventDefault();
-      if (e.shiftKey) {
-        outdent();
-      } else {
-        indent();
-      }
-      return;
-    }
-    if (e.key === " " && el.selectionStart === 0 && el.selectionEnd === 0) {
-      e.preventDefault();
-      indent();
-      return;
-    }
-    if (e.key === "Backspace" && el.selectionStart === 0 && el.selectionEnd === 0) {
-      e.preventDefault();
-      outdent();
-      return;
-    }
-  };
+  const handleEditorSend = useCallback(
+    (text: string) => {
+      onSend(text, level);
+    },
+    [onSend, level],
+  );
 
   useEffect(() => {
     if (scrollableRef.current) {
       scrollableRef.current.scrollTop = scrollableRef.current.scrollHeight;
     }
   }, [messages]);
-
-  useEffect(() => {
-    inputValueRef.current = "";
-    if (inputRef.current) {
-      inputRef.current.value = "";
-      autoResize();
-    }
-  }, [currentFile.id]);
-
-  useEffect(() => {
-    autoResize();
-  }, []);
 
   useEffect(() => {
     return () => selectMessage(null);
@@ -241,18 +143,12 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
           </div>
           <div className="px-3">
             <IndentGuides level={level}>
-              <MessageBlock
-                inputRef={inputRef}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                onCompositionStart={() => {
-                  composingRef.current = true;
-                }}
-                onCompositionEnd={() => {
-                  composingRef.current = false;
-                  inputValueRef.current = inputRef.current?.value ?? "";
-                  autoResize();
-                }}
+              <MessageEditor
+                key={currentFile.id}
+                ref={editorRef}
+                onSend={handleEditorSend}
+                onIndent={indent}
+                onOutdent={outdent}
                 placeholder="Type a message..."
               />
             </IndentGuides>
@@ -261,7 +157,7 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
             className="flex-1 cursor-text min-h-[120px]"
             onClick={() => {
               selectMessage(null);
-              focusInput();
+              editorRef.current?.focus();
             }}
           />
         </div>
