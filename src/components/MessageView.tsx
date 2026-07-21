@@ -45,7 +45,7 @@ export function MessageView({ text, messageId }: { text: string; messageId: stri
 
   return (
     <div
-      className={`px-2 py-1 rounded hover:bg-neutral-50 cursor-pointer${isSelected ? " bg-neutral-100 outline-1 outline-solid outline-gray-200" : ""}`}
+      className={`px-2 py-1 rounded hover:bg-neutral-50 cursor-pointer${isSelected ? " bg-neutral-100 outline-1 outline-solid outline-gray-200 outline-offset-[-1px]" : ""}`}
       onClick={handleClick}
     >
       <div className="text-base leading-relaxed whitespace-pre-wrap break-anywhere">{text}</div>

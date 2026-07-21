@@ -1,46 +1,55 @@
-import { useRef, useEffect, useCallback, useState, useMemo, memo } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 
-import { buildTree } from "../tree";
-import type { Message, TreeNode } from "../types";
+import type { Message } from "../types";
 import MessageEditor from "./MessageEditor";
 import type { MessageEditorHandle } from "./MessageEditor";
 import { selectMessage, MemoizedMessageView } from "./MessageView";
 
-const MAX_GUIDE_DEPTH = 20;
+/**
+ * Returns a style that indents content by `depth` levels and draws vertical
+ * guide lines at each level boundary.
+ */
+function indentStyle(depth: number): React.CSSProperties {
+  // Base padding (rem)
+  const BASE = 0.75;
+  // Per-level padding-left increment (rem)
+  const INDENT = 2;
+  // Distance from the left edge of the indent area to the guide line (rem)
+  const GAP = 0.5;
 
-function IndentGuides({ level, children }: { level: number; children: React.ReactNode }) {
-  let content = children;
-  for (let i = MAX_GUIDE_DEPTH - 1; i >= 0; i--) {
-    const show = i < level;
-    content = (
-      <div
-        className={show ? "border-0 border-l border-solid border-gray-200 ml-2" : ""}
-        style={{ paddingLeft: show ? "1.5rem" : "0" }}
-      >
-        {content}
-      </div>
-    );
+  if (depth <= 0) {
+    return { paddingLeft: `${BASE}rem`, paddingRight: `${BASE}rem` };
   }
-  return content;
+
+  // The gradient repeats every `INDENT` rem; each period draws a 1px line at
+  // `GAP` rem from its left edge.  `background-size` limits how many periods
+  // are visible (= `depth`), and `background-position` shifts the whole
+  // gradient past the base padding.
+  return {
+    paddingLeft: `${BASE + depth * INDENT}rem`,
+    paddingRight: `${BASE}rem`,
+    backgroundImage: `repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent ${GAP}rem,
+      var(--guide) ${GAP}rem,
+      var(--guide) calc(${GAP}rem + 1px),
+      transparent calc(${GAP}rem + 1px),
+      transparent ${INDENT}rem
+    )`,
+    backgroundSize: `${depth * INDENT}rem 100%`,
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: `${BASE}rem 0`,
+  };
 }
 
-const MessageNode = memo(function MessageNode({ node }: { node: TreeNode }) {
+function IndentGuides({ level, children }: { level: number; children: React.ReactNode }) {
   return (
-    <div>
-      <MemoizedMessageView text={node.message.text} messageId={node.message.id} />
-      {node.children.length > 0 && (
-        <div
-          className="border-0 border-l border-solid border-gray-200 ml-2"
-          style={{ paddingLeft: "1.5rem" }}
-        >
-          {node.children.map((child) => (
-            <MessageNode key={child.message.id} node={child} />
-          ))}
-        </div>
-      )}
+    <div className="min-w-0 [--guide:theme(colors.gray.200)]" style={indentStyle(level)}>
+      {children}
     </div>
   );
-});
+}
 
 interface Props {
   currentFile: { id: string; name: string };
@@ -55,8 +64,6 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
   const [level, setLevel] = useState(() => messages[messages.length - 1]?.level ?? 0);
   const [prevFileId, setPrevFileId] = useState(currentFile.id);
   const [initialized, setInitialized] = useState(false);
-
-  const tree = useMemo(() => buildTree(messages), [messages]);
 
   if (currentFile.id !== prevFileId) {
     setPrevFileId(currentFile.id);
@@ -117,25 +124,21 @@ export default function ThreadView({ currentFile, messages, onSend, onBack }: Pr
         ref={scrollableRef}
       >
         <div className="flex flex-col flex-1 min-h-0 mx-auto w-full max-w-6xl px-4 pt-4">
-          <div className="flex-none min-w-0">
-            {tree.map((node) => (
-              <div key={node.message.id} className="px-3 min-w-0">
-                <MessageNode node={node} />
-              </div>
-            ))}
-          </div>
-          <div className="px-3">
-            <IndentGuides level={level}>
-              <MessageEditor
-                key={currentFile.id}
-                ref={editorRef}
-                onSend={handleEditorSend}
-                onIndent={indent}
-                onOutdent={outdent}
-                placeholder="Type a message..."
-              />
+          {messages.map((msg) => (
+            <IndentGuides key={msg.id} level={msg.level}>
+              <MemoizedMessageView text={msg.text} messageId={msg.id} />
             </IndentGuides>
-          </div>
+          ))}
+          <IndentGuides level={level}>
+            <MessageEditor
+              key={currentFile.id}
+              ref={editorRef}
+              onSend={handleEditorSend}
+              onIndent={indent}
+              onOutdent={outdent}
+              placeholder="Type a message..."
+            />
+          </IndentGuides>
           <div
             className="flex-1 cursor-text min-h-[120px]"
             onClick={() => {
