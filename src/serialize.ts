@@ -1,7 +1,5 @@
 import type { Message } from "./types";
 
-export { buildTree } from "./tree";
-
 export function parseMessages(content: string): Message[] {
   try {
     const data = JSON.parse(content);

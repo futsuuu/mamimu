@@ -4,8 +4,3 @@ export interface Message {
   timestamp: number;
   level: number;
 }
-
-export interface TreeNode {
-  message: Message;
-  children: TreeNode[];
-}
